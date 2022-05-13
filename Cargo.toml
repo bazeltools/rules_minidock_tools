@@ -1,8 +1,24 @@
 [package]
+authors = ["Ian O'Connell <ianoc@ianoc.net>"]
+edition = "2021"
+license = "Apache-2.0"
 name = "rules_minidock_tools"
 version = "0.1.0"
-edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "parser-app"
+path = "app/parser_app.rs"
 
 [dependencies]
+anyhow = "1.0.57"
+clap = { version = "3.1.18", features = ["derive", "env"] }
+serde = { version = "1.0.137", features = ["derive", "alloc"] }
+serde_json = { version = "1.0.81", features = ["alloc"] }
+tokio = { version = "1.18.2", features = ["full"] }
+
+
+
+[lib]
+name = "rules_minidock_tools"
+path = "src/lib.rs"

@@ -1,0 +1,45 @@
+[
+    {
+      "base_config": "../bazel_320/image/config.json",
+      "base_manifest": "../bazel_320/image/manifest.json",
+      "remote_fetch_config": {
+        "image_digest": "sha256:08434856d8196632b936dd082b8e03bae0b41346299aedf60a0d481ab427a69f",
+        "image_registry": "l.gcr.io",
+        "image_repository": "google/bazel"
+      }
+    },
+    {
+      "config": null,
+      "current_layer": "test_simple_imagea-layer.tar.gz"
+    },
+    {
+      "config": {
+        "architecture": "amd64",
+        "cmd": [],
+        "entry_point": [],
+        "env": null,
+        "null_cmd": false,
+        "null_entrypoint": false,
+        "user": "",
+        "workdir": null
+      },
+      "current_layer": null
+    },
+    {
+      "config": null,
+      "current_layer": "test_simple_imagen-layer.tar.gz"
+    },
+    {
+      "config": {
+        "architecture": "amd64",
+        "cmd": [],
+        "entry_point": [],
+        "env": null,
+        "null_cmd": false,
+        "null_entrypoint": false,
+        "user": "",
+        "workdir": null
+      },
+      "current_layer": null
+    }
+  ]
