@@ -19,31 +19,16 @@ pub struct RemoteFetchConfig {
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct Config {
-    pub architecture: Option<String>,
-    pub cmd: Option<Vec<String>>,
-    #[serde(rename = "entry_point")]
-    pub entrypoint: Option<Vec<String>>,
-    #[serde(rename = "Env", default = "Vec::default")]
-    pub env: Vec<String>,
-
-    pub null_cmd: Option<bool>,
-    pub null_entrypoint: Option<bool>,
-    pub user: Option<String>,
-    pub workdir: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct Layer {
     pub base_config: Option<String>,
     pub base_manifest: Option<String>,
     pub remote_fetch_config: Option<RemoteFetchConfig>,
     pub current_layer: Option<String>,
-    pub config: Option<Config>,
+    pub config: Option<super::config::Config>,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct Layers(Vec<Layer>);
+pub struct Layers(pub Vec<Layer>);
 
 impl Layers {
     pub fn write_file(&self, f: impl AsRef<Path>) -> Result<(), Error> {

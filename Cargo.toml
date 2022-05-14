@@ -10,11 +10,19 @@ version = "0.1.0"
 name = "parser-app"
 path = "app/parser_app.rs"
 
+
+
+[[bin]]
+name = "merge-app"
+path = "app/merge_app.rs"
+
 [dependencies]
 anyhow = "1.0.57"
 clap = { version = "3.1.18", features = ["derive", "env"] }
 serde = { version = "1.0.137", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.81", features = ["alloc"] }
+sha2 = "0.10.2"
+thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["full"] }
 
 
@@ -22,3 +30,6 @@ tokio = { version = "1.18.2", features = ["full"] }
 [lib]
 name = "rules_minidock_tools"
 path = "src/lib.rs"
+
+[dev-dependencies]
+tempfile = "3.3.0"
