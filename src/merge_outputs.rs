@@ -3,17 +3,15 @@ use crate::{docker_types::{self, manifest, config::Config}, hash::sha256_value::
 
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
-
 use anyhow::{Error, bail};
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct OutputLayer {
     pub content: String,
-    pub sha256: String
+    pub sha256: Sha256Value
 }
 
-#[derive(Deserialize, Serialize, Default, Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct LayerUploads {
     pub layers: Vec<OutputLayer>
 }
@@ -50,7 +48,7 @@ pub async fn merge(
                 cfg.add_layer(&sha_str_fmt);
                 layer_uploads.layers.push(OutputLayer {
                     content: layer.clone(),
-                    sha256: sha_str_fmt
+                    sha256: sha_v
                 });
             }
         }
