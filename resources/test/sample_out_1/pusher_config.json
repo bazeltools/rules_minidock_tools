@@ -10,7 +10,10 @@
     },
     {
         "config": null,
-        "current_layer": "test_simple_imagea-layer.tar.gz"
+        "current_layer": {
+          "short_path": "test_simple_imagea-layer.tar.gz",
+          "path": "test_simple_imagea-layer.tar.gz"
+        }
     },
     {
         "config": {

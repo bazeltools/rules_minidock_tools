@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use anyhow::Error;
 
+use super::PathPair;
+
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct HistoryItem {
     pub author: Option<String>,
@@ -18,12 +20,14 @@ pub struct RemoteFetchConfig {
     pub image_repository: String,
 }
 
+
+
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct Layer {
-    pub base_config: Option<String>,
-    pub base_manifest: Option<String>,
+    pub base_config: Option<PathPair>,
+    pub base_manifest: Option<PathPair>,
     pub remote_fetch_config: Option<RemoteFetchConfig>,
-    pub current_layer: Option<String>,
+    pub current_layer: Option<PathPair>,
     pub config: Option<super::config::Config>,
 }
 

@@ -1,6 +1,7 @@
-use anyhow::bail;
+use anyhow::{bail, Error};
 use clap::Parser;
-use std::{path::PathBuf, io::Write};
+use rules_minidock_tools::{hash::sha256_value::Sha256Value, docker_types::PathPair, merge_outputs::OutputLayer};
+use std::{path::{PathBuf, Path}, io::{Write, BufWriter}, fs::File};
 
 #[derive(Parser, Debug)]
 #[clap(name = "basic")]
@@ -9,55 +10,51 @@ struct Opt {
     pusher_config_path: PathBuf,
 
     #[clap(long, parse(from_os_str))]
-    relative_search_path: PathBuf,
-
-
-    #[clap(long, parse(from_os_str))]
-    config_output: PathBuf,
+    relative_search_path: Option<PathBuf>,
 
     #[clap(long, parse(from_os_str))]
     directory_output: PathBuf,
 
     #[clap(long, parse(from_os_str))]
-    pusher_path: PathBuf,
-
-    #[clap(long, parse(from_os_str))]
-    launcher_path: PathBuf,
-
+    directory_output_short_path: PathBuf,
 
 }
 
-static PRELUDE: & str = r#"
-#!/usr/bin/env bash
-# Copyright 2017 The Bazel Authors. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
-set -eu
-
-function guess_runfiles() {
-    if [ -d ${BASH_SOURCE[0]}.runfiles ]; then
-        # Runfiles are adjacent to the current script.
-        echo "$( cd ${BASH_SOURCE[0]}.runfiles && pwd )"
-    else
-        # The current script is within some other script's runfiles.
-        mydir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-        echo $mydir | sed -e 's|\(.*\.runfiles\)/.*|\1|'
-    fi
+async fn write_sha<P: AsRef<Path>>(path: P, sha_value: &Sha256Value) -> Result<(), Error> {
+    let file = File::create(path.as_ref())?;
+    let mut writer = BufWriter::new(file);
+    writer.write_all(sha_value.to_string().as_bytes())?;
+    Ok(())
 }
 
-RUNFILES="${PYTHON_RUNFILES:-$(guess_runfiles)}"
-"#;
+struct RetF {
+    outer_sha: PathPair,
+    inner_sha: PathPair
+}
+
+async fn emit_shas<P: AsRef<Path>, Q: AsRef<Path>>(directory_output: P, directory_output_short: Q, idx: usize, output_layer: &OutputLayer) -> Result<RetF, Error> {
+    let outer_nme = format!("{}.outer.sha256", idx);
+    let inner_nme = format!("{}.inner.sha256", idx);
+
+    write_sha(
+        directory_output.as_ref().join(&outer_nme),
+        &output_layer.sha256
+    ).await?;
+
+    write_sha(
+        directory_output.as_ref().join(&inner_nme),
+        &output_layer.inner_sha_v
+    ).await?;
+
+    Ok(
+        RetF {
+            outer_sha: PathPair { short_path: directory_output_short.as_ref().join(&outer_nme).to_string_lossy().to_string(), path: directory_output.as_ref().join(&outer_nme).to_string_lossy().to_string() },
+            inner_sha: PathPair { short_path: directory_output_short.as_ref().join(&inner_nme).to_string_lossy().to_string(), path: directory_output.as_ref().join(&inner_nme).to_string_lossy().to_string() },
+        }
+    )
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -69,46 +66,62 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let relative_search_path = opt.relative_search_path.clone();
 
-    let (merge_config, layers) = rules_minidock_tools::merge_outputs::merge(&pusher_config, &relative_search_path).await?;
+    let (merge_config, mut manifest, layers) = rules_minidock_tools::merge_outputs::merge(&pusher_config, &relative_search_path).await?;
 
     let config_path = opt.directory_output.join("config.json");
     merge_config.write_file(&config_path)?;
 
+    let (config_sha, config_len) = Sha256Value::from_path(&config_path).await?;
+
+    manifest.update_config(config_sha, config_len);
+
+
+    let manifest_path = opt.directory_output.join("manifest.json");
+    manifest.write_file(&manifest_path)?;
+
+
     let mut args = Vec::default();
 
     for (idx, output_layer) in layers.layers.iter().enumerate() {
+        let ret_f = emit_shas(
+            &opt.directory_output,
+            &opt.directory_output_short_path,
+            idx,
+            output_layer
+        ).await?;
 
-        use std::fs::File;
-        use std::io::BufWriter;
-
-        let p = opt.directory_output.join(format!("{}.sha256", idx));
-        let file = File::create(&p)?;
-
-        let mut writer = BufWriter::new(file);
-        writer.write(output_layer.sha256.to_string().as_bytes())?;
-
-        args.push(format!("--layer=$RUNFILES/{},{}", output_layer.content, p.to_string_lossy()))
-
+        args.push(format!("|ARGS=\"$ARGS --layer={},{},{}\"", &output_layer.content.short_path, ret_f.outer_sha.short_path, ret_f.inner_sha.short_path))
      }
-    //  --manifest=${RUNFILES}/io_bazel_rules_docker/test_simple_imagen.0.manifest
 
-    let launcher_content = format!(r#"${{RUNFILES}}/{pusher_path} \
-    --config=${{RUNFILES}}/{config_path} \
-    {layers} \
-    --format=Docker \
-    --dst=registry.us-west-2.streamingtest.titus.netflix.net:7002/ae/ianoc_tests_docker/test:unchanged_tag1 \
-    -skip-unchanged-digest
-    "#, pusher_path = &opt.pusher_path.to_string_lossy(), config_path =config_path.to_string_lossy(),
+    let include_data = format!(r#"
+        |
+        |cat {directory_output_short_path}/config.json
+        |pwd
+        |ARGS=""
+        |ARGS="$ARGS --config={directory_output_short_path}/config.json" \
+        {layers}
+    "#, directory_output_short_path = opt.directory_output_short_path.to_string_lossy(),
     layers = args.join("\n"));
 
 
     use std::fs::File;
     use std::io::BufWriter;
 
+    let trimmed_content = include_data.lines().map(|ln| {
+        if let Some(off) = ln.find('|') {
+            if off == ln.len() {
+                ""
+            } else {
+                ln.split_at(off+1).1
+            }
+        } else {
+            ln
+        }
+    }).collect::<Vec<&str>>().join("\n");
     // Open the file in read-only mode with buffer.
-    let file = File::create(&opt.launcher_path)?;
+    let file = File::create(opt.directory_output.join("launcher_helper"))?;
     let mut writer = BufWriter::new(file);
-    writer.write(launcher_content.as_bytes())?;
+    writer.write_all(trimmed_content.as_bytes())?;
 
     println!("merged_config: {:#?}", merge_config);
     println!("layers: {:#?}", layers);

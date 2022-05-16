@@ -2,22 +2,16 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use anyhow::Error;
+use anyhow::{Error, bail};
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct Layer {
+
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Default, Clone)]
+pub struct ManifestReference {
     #[serde(rename = "mediaType")]
     pub media_type: String,
     pub size: u64,
-    digest: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct ManifestConfig {
-    #[serde(rename = "mediaType")]
-    pub media_type: String,
-    pub size: u64,
-    digest: String,
+    pub digest: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -28,9 +22,28 @@ pub struct Manifest {
     #[serde(rename = "mediaType")]
     pub media_type: String,
 
-    pub config: ManifestConfig,
+    pub config: ManifestReference,
 
-    pub layers: Vec<Layer>,
+    pub layers: Vec<ManifestReference>,
+}
+
+
+pub fn merge_manifest<'a>(current: &'a mut Manifest, next: &Manifest) ->   Result<&'a mut Manifest, Error> {
+    if !current.layers.is_empty() && !next.layers.is_empty() {
+        bail!("Tried to merge manifests where both have layers, unclear what to do here. merge {:#?} into {:#?}", next, current)
+    }
+
+    current.layers = next.layers.clone();
+    Ok(current)
+}
+
+impl Default for Manifest {
+    fn default() -> Self {
+        Self { schema_version: 2,
+            media_type: String::from("application/vnd.oci.image.manifest.v1+json"),
+            config: Default::default(),
+            layers: Default::default() }
+    }
 }
 
 impl Manifest {
@@ -56,5 +69,24 @@ impl Manifest {
         let u: Manifest = serde_json::from_reader(reader)?;
 
         Ok(u)
+    }
+
+    pub fn update_config(&mut self, compressed_sha_v: crate::hash::sha256_value::Sha256Value, compressed_size: crate::hash::sha256_value::DataLen) {
+        self.config =  ManifestReference {
+            media_type:  String::from("application/vnd.oci.image.layer.v1.tar+gzip"),
+            size: compressed_size.0 as u64,
+            digest: format!("sha256:{}", compressed_sha_v)
+        };
+    }
+
+
+    pub fn add_layer(&mut self, compressed_sha_v: crate::hash::sha256_value::Sha256Value, compressed_size: crate::hash::sha256_value::DataLen) {
+        self.layers.push(
+            ManifestReference {
+                media_type:  String::from("application/vnd.oci.image.layer.v1.tar+gzip"),
+                size: compressed_size.0 as u64,
+                digest: format!("sha256:{}", compressed_sha_v)
+            }
+        );
     }
 }

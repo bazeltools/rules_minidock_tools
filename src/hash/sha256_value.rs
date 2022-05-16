@@ -1,10 +1,16 @@
 use sha2::Digest;
 use sha2::Sha256;
+use std::io::Read;
 use std::str::FromStr;
 use tokio::io::AsyncReadExt;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Sha256Value([u8; 32]);
+
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub struct DataLen(pub usize);
+
 impl Sha256Value {
     pub fn new_from_slice(data: &[u8]) -> Result<Sha256Value, ShaReaderError> {
         let mut d: [u8; 32] = Default::default();
@@ -15,7 +21,37 @@ impl Sha256Value {
         Ok(Sha256Value(d))
     }
 
-    pub async fn from_path(path: &std::path::Path) -> Result<Sha256Value, std::io::Error> {
+pub async fn from_path_uncompressed(path: &std::path::Path) -> Result<(Sha256Value, DataLen), std::io::Error> {
+    use flate2::read::GzDecoder;
+
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(  move || {
+    let compressed_f = std::fs::File::open(&path)?;
+
+    let mut f = GzDecoder::new(compressed_f);
+    let mut buffer = vec![0; 1024 * 3];
+    let mut hasher = Sha256::new();
+
+    // read up to 10 bytes
+    let mut n = 1;
+    let mut total_read = 0;
+    while n > 0 {
+        n = f.read(&mut buffer[..])?;
+
+        if n > 0 {
+            total_read += 1;
+            hasher.update(&buffer[0..n]);
+        }
+    }
+
+    let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
+
+    Ok((new_hash, DataLen(total_read)))
+    }).await?
+}
+
+    pub async fn from_path(path: &std::path::Path) -> Result<(Sha256Value, DataLen), std::io::Error> {
         let mut f = tokio::fs::File::open(&path).await?;
 
         let mut buffer = vec![0; 1024 * 3];
@@ -23,10 +59,13 @@ impl Sha256Value {
 
         // read up to 10 bytes
         let mut n = 1;
+        let mut total_read = 0;
+
         while n > 0 {
             n = f.read(&mut buffer[..]).await?;
 
             if n > 0 {
+                total_read += 1;
                 hasher.update(&buffer[0..n]);
             }
         }
@@ -34,7 +73,7 @@ impl Sha256Value {
         let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
 
-        Ok(new_hash)
+            Ok((new_hash, DataLen(total_read)))
     }
 }
 
@@ -213,7 +252,7 @@ mod tests {
         }
         named_temp_file.flush()?;
 
-        let generated = Sha256Value::from_path(named_temp_file.path()).await?;
+        let generated = Sha256Value::from_path(named_temp_file.path()).await?.0;
 
         let expected_sha256: Sha256Value =
             Sha256Value::new_from_slice(&expected_hasher.finalize())?;
