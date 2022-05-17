@@ -30,6 +30,6 @@ jobs:
           toolchain: stable
       - run: rustup component add rustfmt
       - name: Build and upload artifact
-        run: ./.github/workflows/build_binaries.sh ${{ matrix.os }} ${{ matrix.platform }} "merger-app puller-app pusher-app"
+        run: ./.github/workflows/build_binaries.sh ${{ matrix.os }} ${{ matrix.platform }} merger-app puller-app pusher-app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

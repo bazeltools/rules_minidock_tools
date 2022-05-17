@@ -19,13 +19,6 @@ if [ -z "$TARGET_PLATFORM" ]; then
     exit 1
 fi
 
-BINARIES=$1
-shift
-if [ -z "$BINARIES" ]; then
-    echo "Need a BINARIES arg, e.g. merger-app"
-    exit 1
-fi
-
 if [[ "$TARGET_OS" =~ macos.* ]]; then
     export TARGET_OS=macos
     export SDKROOT=$(xcrun -sdk macosx --show-sdk-path)
@@ -45,7 +38,7 @@ if [ "$TARGET_PLATFORM" != "x86_64" ];then
 fi
 
 
-for b in "$BINARIES"; do
+for b in "$@"; do
     set -x
     cargo build $CROSS_BUILD_TARGET --bin $b --release --all-features
 
