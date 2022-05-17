@@ -46,8 +46,10 @@ fi
 
 
 for b in "$BINARIES"; do
-    OUTPUT_ASSET_NAME="${b}-$TARGET_OS-${TARGET_PLATFORM}"
+    set -x
     cargo build $CROSS_BUILD_TARGET --bin $b --release --all-features
+
+    OUTPUT_ASSET_NAME="${b}-$TARGET_OS-${TARGET_PLATFORM}"
     cp $APP_DIR/$b $OUTPUT_ASSET_NAME
     GENERATED_SHA_256=$(shasum -a 256 $OUTPUT_ASSET_NAME | awk '{print $1}')
     echo $GENERATED_SHA_256 > ${OUTPUT_ASSET_NAME}.sha256
