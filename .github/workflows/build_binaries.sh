@@ -31,6 +31,7 @@ if [ "$TARGET_PLATFORM" != "x86_64" ];then
     if [ "$TARGET_OS" == "macos" ]; then
         CROSS_BUILD_TARGET="--target=aarch64-apple-darwin"
         APP_DIR="target/aarch64-apple-darwin/release/"
+        rustup target add aarch64-apple-darwin
     else
         echo "Don't know how to build $TARGET_PLATFORM on $TARGET_OS"
         exit 1
