@@ -26,7 +26,7 @@ if [ -z "$BINARIES" ]; then
     exit 1
 fi
 
-if [[ "$TARGET_OS" =~ "macos.*" ]]; then
+if [[ "$TARGET_OS" =~ macos.* ]]; then
     export TARGET_OS=macos
     export SDKROOT=$(xcrun -sdk macosx --show-sdk-path)
     export MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)
