@@ -7,7 +7,6 @@ use tokio::io::AsyncReadExt;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Sha256Value([u8; 32]);
 
-
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub struct DataLen(pub usize);
 
@@ -21,37 +20,42 @@ impl Sha256Value {
         Ok(Sha256Value(d))
     }
 
-pub async fn from_path_uncompressed(path: &std::path::Path) -> Result<(Sha256Value, DataLen), std::io::Error> {
-    use flate2::read::GzDecoder;
+    pub async fn from_path_uncompressed(
+        path: &std::path::Path,
+    ) -> Result<(Sha256Value, DataLen), std::io::Error> {
+        use flate2::read::GzDecoder;
 
-    let path = path.to_path_buf();
-    tokio::task::spawn_blocking(  move || {
-    let compressed_f = std::fs::File::open(&path)?;
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let compressed_f = std::fs::File::open(&path)?;
 
-    let mut f = GzDecoder::new(compressed_f);
-    let mut buffer = vec![0; 1024 * 3];
-    let mut hasher = Sha256::new();
+            let mut f = GzDecoder::new(compressed_f);
+            let mut buffer = vec![0; 1024 * 3];
+            let mut hasher = Sha256::new();
 
-    // read up to 10 bytes
-    let mut n = 1;
-    let mut total_read = 0;
-    while n > 0 {
-        n = f.read(&mut buffer[..])?;
+            // read up to 10 bytes
+            let mut n = 1;
+            let mut total_read = 0;
+            while n > 0 {
+                n = f.read(&mut buffer[..])?;
 
-        if n > 0 {
-            total_read += 1;
-            hasher.update(&buffer[0..n]);
-        }
+                if n > 0 {
+                    total_read += 1;
+                    hasher.update(&buffer[0..n]);
+                }
+            }
+
+            let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
+
+            Ok((new_hash, DataLen(total_read)))
+        })
+        .await?
     }
 
-    let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
-
-    Ok((new_hash, DataLen(total_read)))
-    }).await?
-}
-
-    pub async fn from_path(path: &std::path::Path) -> Result<(Sha256Value, DataLen), std::io::Error> {
+    pub async fn from_path(
+        path: &std::path::Path,
+    ) -> Result<(Sha256Value, DataLen), std::io::Error> {
         let mut f = tokio::fs::File::open(&path).await?;
 
         let mut buffer = vec![0; 1024 * 3];
@@ -65,7 +69,7 @@ pub async fn from_path_uncompressed(path: &std::path::Path) -> Result<(Sha256Val
             n = f.read(&mut buffer[..]).await?;
 
             if n > 0 {
-                total_read += 1;
+                total_read += n;
                 hasher.update(&buffer[0..n]);
             }
         }
@@ -73,7 +77,7 @@ pub async fn from_path_uncompressed(path: &std::path::Path) -> Result<(Sha256Val
         let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
 
-            Ok((new_hash, DataLen(total_read)))
+        Ok((new_hash, DataLen(total_read)))
     }
 }
 
@@ -86,7 +90,6 @@ impl TryFrom<&[u8]> for Sha256Value {
         Sha256Value::new_from_slice(&expected_hasher.finalize())
     }
 }
-
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum ShaReaderError {

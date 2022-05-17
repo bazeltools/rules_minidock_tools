@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use anyhow::{Error, bail};
+use anyhow::{bail, Error};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub struct HistoryItem {
@@ -11,7 +11,21 @@ pub struct HistoryItem {
     pub created_by: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Default, Clone)]
+impl TryFrom<crate::container_specs::docker_types::config::HistoryItem> for HistoryItem {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: crate::container_specs::docker_types::config::HistoryItem,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            author: value.author,
+            created: value.created,
+            created_by: value.created_by,
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub struct RootFs {
     #[serde(rename = "type")]
     pub root_type: String,
@@ -22,10 +36,31 @@ impl RootFs {
         self.diff_ids.push(digest.as_ref().to_string());
     }
 }
+impl Default for RootFs {
+    fn default() -> Self {
+        Self {
+            root_type: String::from("layers"),
+            diff_ids: Default::default(),
+        }
+    }
+}
+
+impl TryFrom<crate::container_specs::docker_types::config::RootFs> for RootFs {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: crate::container_specs::docker_types::config::RootFs,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            root_type: String::from("layers"),
+            diff_ids: value.diff_ids,
+        })
+    }
+}
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Default, Clone)]
 pub struct InnerConfig {
-    #[serde(rename = "Entrypoint", alias="entry_point")]
+    #[serde(rename = "Entrypoint", alias = "entry_point")]
     pub entrypoint: Option<Vec<String>>,
 
     #[serde(rename = "Env", alias = "env")]
@@ -44,12 +79,22 @@ pub struct InnerConfig {
     pub workdir: Option<String>,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
-pub struct ManifestConfig {
-    #[serde(rename = "mediaType")]
-    pub media_type: String,
-    pub size: u64,
-    digest: String,
+impl TryFrom<crate::container_specs::docker_types::config::InnerConfig> for InnerConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: crate::container_specs::docker_types::config::InnerConfig,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            entrypoint: value.entrypoint,
+            env: value.env,
+            cmd: value.cmd,
+            image: value.image,
+            args_escaped: value.args_escaped,
+            user: value.user,
+            workdir: value.workdir,
+        })
+    }
 }
 
 #[derive(Deserialize, Serialize, Default, Debug, PartialEq, Eq, Clone)]
@@ -63,6 +108,37 @@ pub struct Config {
     pub config: Option<InnerConfig>,
 }
 
+fn invert<T, E>(d: Option<Result<T, E>>) -> Result<Option<T>, E> {
+    match d {
+        Some(Ok(e)) => Ok(Some(e)),
+        Some(Err(e)) => Err(e),
+        None => Ok(None),
+    }
+}
+
+impl TryFrom<crate::container_specs::docker_types::config::Config> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(
+        value: crate::container_specs::docker_types::config::Config,
+    ) -> Result<Self, Self::Error> {
+        let history = invert(value.history.map(|h| {
+            h.into_iter()
+                .map(|e| e.try_into())
+                .collect::<Result<Vec<HistoryItem>, Self::Error>>()
+        }));
+        Ok(Self {
+            architecture: value.architecture,
+            author: value.author,
+            created: value.created,
+            os: value.os,
+            history: history?,
+            rootfs: invert(value.rootfs.map(|e| e.try_into()))?,
+            config: invert(value.config.map(|e| e.try_into()))?,
+        })
+    }
+}
+
 impl Config {
     pub fn add_layer(&mut self, digest: impl AsRef<str>) {
         if self.rootfs.is_none() {
@@ -71,7 +147,6 @@ impl Config {
         if let Some(r) = &mut self.rootfs {
             r.add_layer(digest);
         }
-
     }
     pub fn write_file(&self, f: impl AsRef<Path>) -> Result<(), Error> {
         use std::fs::File;
@@ -98,12 +173,13 @@ impl Config {
     }
 }
 
-
-
-pub fn merge_config<'a>(current: &'a mut Config, next: &Config) ->   Result<&'a mut Config, Error> {
-
+pub fn merge_config<'a>(current: &'a mut Config, next: &Config) -> Result<&'a mut Config, Error> {
     fn merge_inner_cfgs(cur_cfg: &mut InnerConfig, e: &InnerConfig) -> Result<(), Error> {
-        if e.entrypoint.as_ref().map(|e| !e.is_empty()).unwrap_or(false) {
+        if e.entrypoint
+            .as_ref()
+            .map(|e| !e.is_empty())
+            .unwrap_or(false)
+        {
             cur_cfg.entrypoint = e.entrypoint.clone();
         }
 
@@ -114,7 +190,6 @@ pub fn merge_config<'a>(current: &'a mut Config, next: &Config) ->   Result<&'a 
         if e.cmd.as_ref().map(|e| !e.is_empty()).unwrap_or(false) {
             cur_cfg.cmd = e.cmd.clone();
         }
-
 
         if e.image.as_ref().map(|e| !e.is_empty()).unwrap_or(false) {
             cur_cfg.image = e.image.clone();
@@ -150,7 +225,6 @@ pub fn merge_config<'a>(current: &'a mut Config, next: &Config) ->   Result<&'a 
         }
     }
 
-
     if let Some(e) = &next.os {
         if !e.is_empty() {
             current.os = Some(e.clone());
@@ -159,22 +233,25 @@ pub fn merge_config<'a>(current: &'a mut Config, next: &Config) ->   Result<&'a 
 
     if let Some(e) = &next.rootfs {
         if current.rootfs.is_some() {
-            bail!("Unexpected setting root fs when already have a root fs, was: {:#?} -> to {:#?}", current.rootfs, next.rootfs)
+            bail!(
+                "Unexpected setting root fs when already have a root fs, was: {:#?} -> to {:#?}",
+                current.rootfs,
+                next.rootfs
+            )
         }
         current.rootfs = Some(e.clone());
     }
 
-
     if let Some(e) = &next.history {
-       if !e.is_empty() {
-        if let Some(cur_h) = &mut current.history {
-            let mut next_h = e.clone();
-            next_h.append(cur_h);
-            current.history = Some(next_h);
-        } else {
-            current.history = Some(e.clone());
+        if !e.is_empty() {
+            if let Some(cur_h) = &mut current.history {
+                let mut next_h = e.clone();
+                next_h.append(cur_h);
+                current.history = Some(next_h);
+            } else {
+                current.history = Some(e.clone());
+            }
         }
-       }
     }
 
     if let Some(e) = &next.config {
@@ -183,6 +260,6 @@ pub fn merge_config<'a>(current: &'a mut Config, next: &Config) ->   Result<&'a 
         } else {
             current.config = Some(e.clone());
         }
-     }
+    }
     Ok(current)
 }

@@ -1,13 +1,12 @@
-use anyhow::{bail, Error};
 use clap::Parser;
-use rules_minidock_tools::{hash::sha256_value::Sha256Value, docker_types::PathPair, merge_outputs::OutputLayer};
-use std::{path::{PathBuf, Path}, io::{Write, BufWriter}, fs::File};
+use rules_minidock_tools::{hash::sha256_value::Sha256Value, LayerConfig, UploadMetadata};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[clap(name = "basic")]
+#[clap(name = "merge app")]
 struct Opt {
     #[clap(long, parse(from_os_str))]
-    pusher_config_path: PathBuf,
+    merger_config_path: PathBuf,
 
     #[clap(long, parse(from_os_str))]
     relative_search_path: Option<PathBuf>,
@@ -17,56 +16,19 @@ struct Opt {
 
     #[clap(long, parse(from_os_str))]
     directory_output_short_path: PathBuf,
-
 }
-
-
-async fn write_sha<P: AsRef<Path>>(path: P, sha_value: &Sha256Value) -> Result<(), Error> {
-    let file = File::create(path.as_ref())?;
-    let mut writer = BufWriter::new(file);
-    writer.write_all(sha_value.to_string().as_bytes())?;
-    Ok(())
-}
-
-struct RetF {
-    outer_sha: PathPair,
-    inner_sha: PathPair
-}
-
-async fn emit_shas<P: AsRef<Path>, Q: AsRef<Path>>(directory_output: P, directory_output_short: Q, idx: usize, output_layer: &OutputLayer) -> Result<RetF, Error> {
-    let outer_nme = format!("{}.outer.sha256", idx);
-    let inner_nme = format!("{}.inner.sha256", idx);
-
-    write_sha(
-        directory_output.as_ref().join(&outer_nme),
-        &output_layer.sha256
-    ).await?;
-
-    write_sha(
-        directory_output.as_ref().join(&inner_nme),
-        &output_layer.inner_sha_v
-    ).await?;
-
-    Ok(
-        RetF {
-            outer_sha: PathPair { short_path: directory_output_short.as_ref().join(&outer_nme).to_string_lossy().to_string(), path: directory_output.as_ref().join(&outer_nme).to_string_lossy().to_string() },
-            inner_sha: PathPair { short_path: directory_output_short.as_ref().join(&inner_nme).to_string_lossy().to_string(), path: directory_output.as_ref().join(&inner_nme).to_string_lossy().to_string() },
-        }
-    )
-}
-
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
-    let pusher_config = rules_minidock_tools::docker_types::pusher_config::Layers::parse_file(
-        &opt.pusher_config_path,
-    )?;
+    let pusher_config =
+        rules_minidock_tools::merge_config::MergeConfig::parse_file(&opt.merger_config_path)?;
 
     let relative_search_path = opt.relative_search_path.clone();
 
-    let (merge_config, mut manifest, layers) = rules_minidock_tools::merge_outputs::merge(&pusher_config, &relative_search_path).await?;
+    let (merge_config, mut manifest, layers) =
+        rules_minidock_tools::merge_outputs::merge(&pusher_config, &relative_search_path).await?;
 
     let config_path = opt.directory_output.join("config.json");
     merge_config.write_file(&config_path)?;
@@ -75,55 +37,32 @@ async fn main() -> Result<(), anyhow::Error> {
 
     manifest.update_config(config_sha, config_len);
 
-
     let manifest_path = opt.directory_output.join("manifest.json");
     manifest.write_file(&manifest_path)?;
 
+    let mut layer_configs = Vec::default();
 
-    let mut args = Vec::default();
+    for output_layer in layers.layers.iter() {
+        layer_configs.push(LayerConfig {
+            layer_data: output_layer.content.short_path.clone(),
+            outer_sha256: format!("sha256:{}", output_layer.sha256),
+            inner_sha256: format!("sha256:{}", output_layer.inner_sha_v),
+            compressed_length: output_layer.compressed_size.0 as u64,
+        });
+    }
 
-    for (idx, output_layer) in layers.layers.iter().enumerate() {
-        let ret_f = emit_shas(
-            &opt.directory_output,
-            &opt.directory_output_short_path,
-            idx,
-            output_layer
-        ).await?;
-
-        args.push(format!("|ARGS=\"$ARGS --layer={},{},{}\"", &output_layer.content.short_path, ret_f.outer_sha.short_path, ret_f.inner_sha.short_path))
-     }
-
-    let include_data = format!(r#"
-        |
-        |cat {directory_output_short_path}/config.json
-        |pwd
-        |ARGS=""
-        |ARGS="$ARGS --config={directory_output_short_path}/config.json" \
-        {layers}
-    "#, directory_output_short_path = opt.directory_output_short_path.to_string_lossy(),
-    layers = args.join("\n"));
-
+    let upload_metadata = UploadMetadata {
+        layer_configs,
+        remote_metadata: pusher_config.remote_metadata.clone(),
+    };
 
     use std::fs::File;
     use std::io::BufWriter;
+    let upload_metadata_path = opt.directory_output.join("upload_metadata.json");
 
-    let trimmed_content = include_data.lines().map(|ln| {
-        if let Some(off) = ln.find('|') {
-            if off == ln.len() {
-                ""
-            } else {
-                ln.split_at(off+1).1
-            }
-        } else {
-            ln
-        }
-    }).collect::<Vec<&str>>().join("\n");
-    // Open the file in read-only mode with buffer.
-    let file = File::create(opt.directory_output.join("launcher_helper"))?;
-    let mut writer = BufWriter::new(file);
-    writer.write_all(trimmed_content.as_bytes())?;
+    let file = File::create(&upload_metadata_path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &upload_metadata)?;
 
-    println!("merged_config: {:#?}", merge_config);
-    println!("layers: {:#?}", layers);
     Ok(())
 }

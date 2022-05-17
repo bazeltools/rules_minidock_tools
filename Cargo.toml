@@ -7,9 +7,13 @@ version = "0.1.0"
 
 
 [[bin]]
-name = "parser-app"
-path = "app/parser_app.rs"
+name = "pusher-app"
+path = "app/pusher_app.rs"
 
+
+[[bin]]
+name = "puller-app"
+path = "app/puller_app.rs"
 
 
 [[bin]]
@@ -18,13 +22,24 @@ path = "app/merge_app.rs"
 
 [dependencies]
 anyhow = "1.0.57"
+async-recursion = "1.0.0"
+async-stream = "0.3.3"
+bytes = "1.1.0"
 clap = { version = "3.1.18", features = ["derive", "env"] }
 flate2 = "1.0.23"
+http = "0.2.7"
+hyper = { version = "0.14.18", features = ["full"] }
+hyper-rustls = "0.23.0"
+indicatif = "0.16.2"
+rustls = "0.20.5"
 serde = { version = "1.0.137", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.81", features = ["alloc"] }
 sha2 = "0.10.2"
+tempfile = "3.3.0"
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["full"] }
+tokio-stream = "0.1.8"
+tokio-util = { version = "0.7.2", features = ["io"] }
 
 
 
