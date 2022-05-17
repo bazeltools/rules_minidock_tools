@@ -1,0 +1,36 @@
+name: Upload self-contained binaries
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  rust-binaries:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, ubuntu-20.04, ubuntu-18.04]
+        binaries: "merger-app puller-app pusher-app"
+        include:
+          - os: macos-latest
+            platform: x86_64
+          - os: macos-latest
+            platform: aarch64
+          - os: ubuntu-20.04
+            platform: x86_64
+          - os: ubuntu-18.04
+            platform: x86_64
+steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: rustup component add rustfmt
+      - name: Build and upload artifact
+        run: ./.github/workflows/build_binaries.sh ${{ matrix.os }} ${{ matrix.platform }} "${{ matrix.binaries }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
