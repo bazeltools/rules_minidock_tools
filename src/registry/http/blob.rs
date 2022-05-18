@@ -162,7 +162,7 @@ impl BlobStore for super::HttpRegistry {
             *m
         };
         if r.status() != StatusCode::CREATED && r.status() != StatusCode::OK {
-            bail!("Expected to get status code OK, but got {:#?},\nUploading {:?}\nUploading to: {:#?}\nBody:\n{:#?}\nUploaded: {} bytes\nExpected length: {}", r.status(), local_path, &location_uri, dump_body_to_string(&mut r).await?, total_uploaded_bytes, length)
+            bail!("Blob Upload: Expected to get status code OK, but got {:#?},\nUploading {:?}\nUploading to: {:#?}\nBody:\n{:#?}\nUploaded: {} bytes\nExpected length: {}", r.status(), local_path, &location_uri, dump_body_to_string(&mut r).await?, total_uploaded_bytes, length)
         }
 
         if let Some(location_header) = r.headers().get(http::header::LOCATION) {

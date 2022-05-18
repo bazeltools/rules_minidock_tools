@@ -57,7 +57,7 @@ impl super::RegistryCore for HttpRegistry {
             let mut r: Response<Body> = self.http_client.request(request).await?;
 
             if r.status() != StatusCode::CREATED {
-                bail!("Expected to get status code CREATED, but got {:#?},\nUploading {:#?}\nResponse:{}", r.status(), manifest, dump_body_to_string(&mut r).await? )
+                bail!("Expected to get status code CREATED, but got {:#?}, hitting url: {:#?},\nUploading {:#?}\nResponse:{}", r.status(), post_target_uri, manifest, dump_body_to_string(&mut r).await? )
             }
 
             if let Some(location_header) = r.headers().get(http::header::LOCATION) {
