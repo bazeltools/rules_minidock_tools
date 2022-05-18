@@ -312,7 +312,7 @@ impl Registry {
             .method(http::Method::POST)
             .uri(post_target_uri.clone());
         let request = req_builder.body(Body::from(""))?;
-        let r: Response<Body> = self.http_client.request(request).await?;
+        let mut r: Response<Body> = self.http_client.request(request).await?;
         if r.status() != StatusCode::ACCEPTED {
             bail!(
                 "Expected to get a ACCEPTED/202 for upload post request to {:?}, but got {:?}",
@@ -326,7 +326,8 @@ impl Registry {
             let chr = if location_str.contains('?') { '&' } else { '?' };
             format!("{}{}digest={}", location_str, chr, digest.as_ref()).parse::<Uri>().with_context(|| format!("Unable to parse location header response when doing post for new upload, location header was {:?}", location_str))?
         } else {
-            bail!("Was a redirection response code, but missing Location header, invalid response from server")
+            let body = self.dump_body_to_string(&mut r).await?;
+            bail!("Was a redirection response code, but missing Location header, invalid response from server, body:\n{:#?}", body);
         };
 
         let f = tokio::fs::File::open(local_path.as_ref()).await?;
