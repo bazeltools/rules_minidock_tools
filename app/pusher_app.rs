@@ -93,6 +93,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let manifest = oci_types::Manifest::parse(&manifest_bytes)?;
 
     let tags = load_tags(&pusher_config)?;
+    if tags.is_empty() {
+        bail!("No tags specified, unable to know where to push a manifest. Try 'latest' ? ")
+    }
     let upload_metadata_path = merger_data_path.join("upload_metadata.json");
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
