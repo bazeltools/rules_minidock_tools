@@ -38,7 +38,7 @@ if [ "$TARGET_PLATFORM" != "x86_64" ];then
     fi
 fi
 
-if [[ "$TARGET_OS" ~= ubuntu.* ]]; then
+if [[ "$TARGET_OS" =~ ubuntu.* ]]; then
     TARGET_OS=linux
     sudo apt install -y musl-tools
     rustup target add x86_64-unknown-linux-musl
