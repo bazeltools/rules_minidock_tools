@@ -1,27 +1,21 @@
-mod util;
 mod blob;
+mod util;
 
-use std::path::Path;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::container_specs::oci_types::Manifest;
-use crate::registry::http::util::{redirect_uri_fetch, dump_body_to_string};
+use crate::registry::http::util::{dump_body_to_string, redirect_uri_fetch};
 
-use anyhow::{bail, Context, Error};
+use anyhow::{bail, Error};
 use http::Uri;
 use http::{Response, StatusCode};
-use hyper::body::HttpBody as _;
-use hyper::server::conn::Http;
+
 use hyper::{Body, Client};
 use hyper_rustls::ConfigBuilderExt;
-use indicatif::ProgressBar;
+
 use sha2::Digest;
-use tokio::io::AsyncWriteExt;
-use tokio::sync::Mutex;
+
 use tokio::time::timeout;
-use tokio_stream::StreamExt;
-use tokio_util::io::ReaderStream;
 
 use self::util::request_path_in_repository_as_string;
 
@@ -37,20 +31,14 @@ pub struct HttpRegistry {
 
 #[async_trait::async_trait]
 impl super::RegistryCore for HttpRegistry {
-    async fn fetch_manifest_as_string(
-        &self,
-        digest: & str,
-    ) -> Result<ContentAndContentType, Error> {
+    async fn fetch_manifest_as_string(&self, digest: &str) -> Result<ContentAndContentType, Error> {
         let uri = self.repository_uri_from_path(format!("/manifests/{}", digest))?;
         Ok(request_path_in_repository_as_string(&self.http_client, &uri).await?)
     }
 
-    async fn fetch_config_as_string(
-        &self,
-        digest: & str,
-    ) -> Result<ContentAndContentType, Error> {
+    async fn fetch_config_as_string(&self, digest: &str) -> Result<ContentAndContentType, Error> {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
-        Ok(request_path_in_repository_as_string(&self.http_client,&uri).await?)
+        Ok(request_path_in_repository_as_string(&self.http_client, &uri).await?)
     }
 
     async fn upload_manifest(
@@ -74,7 +62,10 @@ impl super::RegistryCore for HttpRegistry {
 
             if let Some(location_header) = r.headers().get(http::header::LOCATION) {
                 let location_str = location_header.to_str()?;
-                eprintln!("Uploaded manifest to {}, for tag: {} @ {}", self.name, t, location_str);
+                eprintln!(
+                    "Uploaded manifest to {}, for tag: {} @ {}",
+                    self.name, t, location_str
+                );
             } else {
                 bail!("We got a positive responsecode: {:#?}, however we are missing the location header as is required in the spec", r.status())
             }
@@ -118,7 +109,11 @@ impl HttpRegistry {
         };
 
         let req_uri = reg.v2_from_path("/")?;
-        let req_future = redirect_uri_fetch(&reg.http_client, |req| req.method(http::Method::HEAD), &req_uri);
+        let req_future = redirect_uri_fetch(
+            &reg.http_client,
+            |req| req.method(http::Method::HEAD),
+            &req_uri,
+        );
 
         let mut resp = match timeout(Duration::from_millis(4000), req_future).await {
             Err(_) => bail!(
@@ -159,7 +154,4 @@ impl HttpRegistry {
         }
         self.v2_from_path(format!("/{}{}", self.name, path_ext))
     }
-
-
-
 }

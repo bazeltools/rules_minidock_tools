@@ -5,7 +5,7 @@ use clap::Parser;
 
 use rules_minidock_tools::container_specs::oci_types;
 use rules_minidock_tools::hash::sha256_value::Sha256Value;
-use rules_minidock_tools::registry::Registry;
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -100,8 +100,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
     let destination_registry = Arc::new(
-        rules_minidock_tools::registry::from_maybe_domain_and_name(&pusher_config.registry, &pusher_config.repository)
-            .await?,
+        rules_minidock_tools::registry::from_maybe_domain_and_name(
+            &pusher_config.registry,
+            &pusher_config.repository,
+        )
+        .await?,
     );
 
     let mut same_registry = false;
@@ -128,12 +131,20 @@ async fn main() -> Result<(), anyhow::Error> {
                         Some(destination_registry.clone())
                     } else {
                         Some(Arc::new(
-                            rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository).await?,
+                            rules_minidock_tools::registry::from_maybe_domain_and_name(
+                                &registry,
+                                &repository,
+                            )
+                            .await?,
                         ))
                     }
                 } else {
                     Some(Arc::new(
-                        rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository).await?,
+                        rules_minidock_tools::registry::from_maybe_domain_and_name(
+                            &registry,
+                            &repository,
+                        )
+                        .await?,
                     ))
                 }
             }
@@ -217,7 +228,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         }
     }
-
 
     println!("All referenced layers present, just metadata uploads remaining");
     let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;

@@ -1,39 +1,35 @@
-
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
-use crate::container_specs::oci_types::Manifest;
 use crate::hash::sha256_value::Sha256Value;
 use crate::registry::BlobStore;
 use anyhow::{bail, Context, Error};
 use http::Uri;
 use http::{Response, StatusCode};
-use hyper::body::HttpBody as _;
-use hyper::server::conn::Http;
-use hyper::{Body, Client};
-use hyper_rustls::ConfigBuilderExt;
+
+use hyper::Body;
+
 use indicatif::ProgressBar;
 use sha2::Digest;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
-use tokio::time::timeout;
+
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 
-use super::ContentAndContentType;
-use super::util::{redirect_uri_fetch, dump_body_to_string};
-
-
-
+use super::util::{dump_body_to_string, redirect_uri_fetch};
 
 #[async_trait::async_trait]
 impl BlobStore for super::HttpRegistry {
     async fn blob_exists(&self, digest: &str) -> Result<bool, Error> {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
 
-        let r = redirect_uri_fetch(&self.http_client, |req| req.method(http::Method::HEAD), &uri)
-            .await?;
+        let r = redirect_uri_fetch(
+            &self.http_client,
+            |req| req.method(http::Method::HEAD),
+            &uri,
+        )
+        .await?;
 
         if r.status() == StatusCode::NOT_FOUND {
             Ok(false)
@@ -49,12 +45,13 @@ impl BlobStore for super::HttpRegistry {
         target_file: &Path,
         digest: &str,
         length: u64,
-    ) -> Result<(), Error>{
+    ) -> Result<(), Error> {
         let target_file = target_file.to_path_buf();
 
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
-        let mut response = redirect_uri_fetch(&self.http_client, |req| req.method(http::Method::GET), &uri)
-            .await?;
+        let mut response =
+            redirect_uri_fetch(&self.http_client, |req| req.method(http::Method::GET), &uri)
+                .await?;
 
         if response.status() != StatusCode::OK {
             bail!(
@@ -98,12 +95,7 @@ impl BlobStore for super::HttpRegistry {
         Ok(())
     }
 
-    async fn upload_blob(
-        &self,
-        local_path: &Path,
-        digest: &str,
-        length: u64,
-    ) -> Result<(), Error> {
+    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64) -> Result<(), Error> {
         let post_target_uri = self.repository_uri_from_path("/blobs/uploads/")?;
         // We expect our POST request to get a location header of where to perform the real upload to.
         let req_builder = http::request::Builder::default()

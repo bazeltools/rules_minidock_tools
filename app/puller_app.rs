@@ -5,7 +5,7 @@ use clap::Parser;
 
 use rules_minidock_tools::container_specs::docker_types::manifest::ManifestReference;
 use rules_minidock_tools::hash::sha256_value::Sha256Value;
-use rules_minidock_tools::registry::Registry;
+
 // cargo run --bin puller-app -- --registry l.gcr.io --repository google/bazel --digest sha256:08434856d8196632b936dd082b8e03bae0b41346299aedf60a0d481ab427a69f
 
 #[derive(Parser, Debug)]
@@ -30,7 +30,9 @@ enum ContentFlavor {
 async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
-    let registry = rules_minidock_tools::registry::from_maybe_domain_and_name(&opt.registry, &opt.repository).await?;
+    let registry =
+        rules_minidock_tools::registry::from_maybe_domain_and_name(&opt.registry, &opt.repository)
+            .await?;
     let manifest_ret = registry.fetch_manifest_as_string(&opt.digest).await?;
 
     let content_flavor = match manifest_ret.content_type.as_ref().map(|e| e.as_str()) {
