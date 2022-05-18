@@ -48,7 +48,7 @@ impl super::RegistryCore for HttpRegistry {
         tags: &Vec<String>,
     ) -> Result<(), Error> {
         for t in tags.iter() {
-            let post_target_uri = self.repository_uri_from_path(format!("/manifest/{}", t))?;
+            let post_target_uri = self.repository_uri_from_path(format!("/manifests/{}", t))?;
             let req_builder = http::request::Builder::default()
                 .method(http::Method::PUT)
                 .uri(post_target_uri.clone())
