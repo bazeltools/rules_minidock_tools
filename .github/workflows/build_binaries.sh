@@ -38,6 +38,14 @@ if [ "$TARGET_PLATFORM" != "x86_64" ];then
     fi
 fi
 
+if [[ "$TARGET_OS" ~= ubuntu.* ]]; then
+    TARGET_OS=linux
+    sudo apt install -y musl-tools
+    rustup target add x86_64-unknown-linux-musl
+    CROSS_BUILD_TARGET="--target=x86_64-unknown-linux-musl"
+    APP_DIR="target/x86_64-unknown-linux-musl/release/"
+fi
+
 
 for b in "$@"; do
     set -x
