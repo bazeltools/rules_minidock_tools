@@ -100,7 +100,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
     let destination_registry = Arc::new(
-        Registry::from_maybe_domain_and_name(&pusher_config.registry, &pusher_config.repository)
+        rules_minidock_tools::registry::from_maybe_domain_and_name(&pusher_config.registry, &pusher_config.repository)
             .await?,
     );
 
@@ -128,12 +128,12 @@ async fn main() -> Result<(), anyhow::Error> {
                         Some(destination_registry.clone())
                     } else {
                         Some(Arc::new(
-                            Registry::from_maybe_domain_and_name(&registry, &repository).await?,
+                            rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository).await?,
                         ))
                     }
                 } else {
                     Some(Arc::new(
-                        Registry::from_maybe_domain_and_name(&registry, &repository).await?,
+                        rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository).await?,
                     ))
                 }
             }
@@ -173,10 +173,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 .iter()
                 .find(|e| e.outer_sha256 == missing.digest)
             {
+                let local_layer_path: PathBuf = (&local_data.layer_data).into();
                 eprintln!("Found {} locally, uploading..", local_data.outer_sha256);
                 destination_registry
                     .upload_blob(
-                        &local_data.layer_data,
+                        &local_layer_path,
                         &local_data.outer_sha256,
                         local_data.compressed_length,
                     )
@@ -238,6 +239,5 @@ async fn main() -> Result<(), anyhow::Error> {
         .upload_manifest(&manifest, &manifest_bytes, &tags)
         .await?;
 
-    // upload_metadata.layer_configs.map
     Ok(())
 }

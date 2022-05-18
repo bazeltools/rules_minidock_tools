@@ -30,7 +30,7 @@ enum ContentFlavor {
 async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
-    let registry = Registry::from_maybe_domain_and_name(&opt.registry, &opt.repository).await?;
+    let registry = rules_minidock_tools::registry::from_maybe_domain_and_name(&opt.registry, &opt.repository).await?;
     let manifest_ret = registry.fetch_manifest_as_string(&opt.digest).await?;
 
     let content_flavor = match manifest_ret.content_type.as_ref().map(|e| e.as_str()) {
