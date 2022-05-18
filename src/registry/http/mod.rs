@@ -63,11 +63,11 @@ impl super::RegistryCore for HttpRegistry {
             if let Some(location_header) = r.headers().get(http::header::LOCATION) {
                 let location_str = location_header.to_str()?;
                 eprintln!(
-                    "Uploaded manifest to {}, for tag: {} @ {}",
-                    self.name, t, location_str
+                    "Uploaded manifest to repository {} @ {:#?}, for tag: {} @ {}",
+                    self.name, post_target_uri, t, location_str
                 );
             } else {
-                bail!("We got a positive responsecode: {:#?}, however we are missing the location header as is required in the spec", r.status())
+                bail!("We got a positive response code: {:#?}, however we are missing the location header as is required in the spec", r.status())
             }
         }
         Ok(())
