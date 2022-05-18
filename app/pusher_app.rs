@@ -212,27 +212,28 @@ async fn main() -> Result<(), anyhow::Error> {
             bail!("We still have remaining missing digests that we dont have locally. However we haven't been configured with a source repository, so we have no means to fetch them.")
         }
         }
-    } else {
-        println!("All referenced layers present, just metadata uploads remaining");
-        let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
-        let config_sha_printed = format!("sha256:{}", config_sha);
-        let expected_sha = &manifest.config.digest;
-
-        if expected_sha != &config_sha_printed {
-            bail!("The config we have on disk at {:?}, does not have the same sha as the manifest expects. Got: {}, expected: {}", &config_path, config_sha_printed, expected_sha)
-        }
-        if !destination_registry
-            .blob_exists(&config_sha_printed)
-            .await?
-        {
-            destination_registry
-                .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64)
-                .await?;
-        }
-        destination_registry
-            .upload_manifest(&manifest, &manifest_bytes, &tags)
-            .await?
     }
+
+
+    println!("All referenced layers present, just metadata uploads remaining");
+    let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
+    let config_sha_printed = format!("sha256:{}", config_sha);
+    let expected_sha = &manifest.config.digest;
+
+    if expected_sha != &config_sha_printed {
+        bail!("The config we have on disk at {:?}, does not have the same sha as the manifest expects. Got: {}, expected: {}", &config_path, config_sha_printed, expected_sha)
+    }
+    if !destination_registry
+        .blob_exists(&config_sha_printed)
+        .await?
+    {
+        destination_registry
+            .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64)
+            .await?;
+    }
+    destination_registry
+        .upload_manifest(&manifest, &manifest_bytes, &tags)
+        .await?;
 
     // upload_metadata.layer_configs.map
     Ok(())
