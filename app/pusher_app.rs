@@ -25,8 +25,8 @@ pub struct PusherConfig {
     pub merger_data: String,
     pub registry: String,
     pub repository: String,
-    pub tags: Option<Vec<String>>,
-    pub tag_file: Option<String>,
+    pub container_tags: Option<Vec<String>>,
+    pub container_tag_file: Option<String>,
 }
 
 const BYTES_IN_MB: u64 = 1024 * 1024;
@@ -45,12 +45,12 @@ fn size_to_string(size: u64) -> String {
 
 fn load_tags(pusher_config: &PusherConfig) -> Result<Vec<String>, anyhow::Error> {
     let mut res = Vec::default();
-    if let Some(tags) = &pusher_config.tags {
+    if let Some(tags) = &pusher_config.container_tags {
         for t in tags.iter() {
             res.push(t.clone());
         }
     }
-    if let Some(f) = &pusher_config.tag_file {
+    if let Some(f) = &pusher_config.container_tag_file {
         for t in std::fs::read_to_string(f)?
             .split_ascii_whitespace()
             .flat_map(|e| e.split(','))
