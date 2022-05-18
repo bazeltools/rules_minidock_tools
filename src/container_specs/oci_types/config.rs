@@ -60,7 +60,7 @@ impl TryFrom<crate::container_specs::docker_types::config::RootFs> for RootFs {
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Default, Clone)]
 pub struct InnerConfig {
-    #[serde(rename = "Entrypoint", alias = "entry_point")]
+    #[serde(rename = "Entrypoint", alias = "entrypoint")]
     pub entrypoint: Option<Vec<String>>,
 
     #[serde(rename = "Env", alias = "env")]

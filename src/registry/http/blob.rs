@@ -83,7 +83,7 @@ impl BlobStore for super::HttpRegistry {
 
         let sha_str = format!("sha256:{}", sha256_value);
 
-        if digest != &sha_str {
+        if digest != sha_str {
             bail!(
                 "Download produced the incorrect sha. Expected {} / {} bytes -- Got {} / {} bytes",
                 digest,

@@ -50,7 +50,7 @@ impl super::RegistryCore for HttpRegistry {
         for t in tags.iter() {
             let post_target_uri = self.repository_uri_from_path(format!("/manifest/{}", t))?;
             let req_builder = http::request::Builder::default()
-                .method(http::Method::POST)
+                .method(http::Method::PUT)
                 .uri(post_target_uri.clone())
                 .header("Content-Type", &manifest.media_type);
             let request = req_builder.body(Body::from(manifest_bytes.clone()))?;

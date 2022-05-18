@@ -99,13 +99,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let upload_metadata_path = merger_data_path.join("upload_metadata.json");
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
-    let destination_registry = Arc::new(
-        rules_minidock_tools::registry::from_maybe_domain_and_name(
-            &pusher_config.registry,
-            &pusher_config.repository,
-        )
-        .await?,
-    );
+    let destination_registry = rules_minidock_tools::registry::from_maybe_domain_and_name(
+        &pusher_config.registry,
+        &pusher_config.repository,
+    )
+    .await?;
 
     let mut same_registry = false;
     let source_registry = if let Some(source_remote_metadata) =
@@ -130,22 +128,22 @@ async fn main() -> Result<(), anyhow::Error> {
                     if repository == &pusher_config.repository {
                         Some(destination_registry.clone())
                     } else {
-                        Some(Arc::new(
+                        Some(
                             rules_minidock_tools::registry::from_maybe_domain_and_name(
                                 &registry,
                                 &repository,
                             )
                             .await?,
-                        ))
+                        )
                     }
                 } else {
-                    Some(Arc::new(
+                    Some(
                         rules_minidock_tools::registry::from_maybe_domain_and_name(
                             &registry,
                             &repository,
                         )
                         .await?,
-                    ))
+                    )
                 }
             }
         }
