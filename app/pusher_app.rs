@@ -245,8 +245,14 @@ async fn main() -> Result<(), anyhow::Error> {
             .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64)
             .await?;
     }
+
+    // First lets upload the manifest keyed by the digest.
+    let (manifest_sha, _) = Sha256Value::from_path(&manifest_path).await?;
+    let mut final_tags = tags.clone();
+    final_tags.push(format!("sha256:{}", manifest_sha));
+
     destination_registry
-        .upload_manifest(&manifest, &manifest_bytes, &tags)
+        .upload_manifest(&manifest, &manifest_bytes, &final_tags)
         .await?;
 
     Ok(())
