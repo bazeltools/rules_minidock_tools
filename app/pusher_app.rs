@@ -8,7 +8,6 @@ use rules_minidock_tools::hash::sha256_value::Sha256Value;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(name = "pusher app")]
