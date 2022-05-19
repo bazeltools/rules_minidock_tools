@@ -9,9 +9,11 @@ use super::{
 use anyhow::{bail, Error};
 use serde::de::Error as SerdeError;
 
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct Manifest {
     pub schema_version: u16,
+    pub tag: Option<String>,
+    pub name: Option<String>,
     pub specification_type: SpecificationType,
     pub config: BlobReference,
     pub layers: Vec<BlobReference>,
@@ -34,6 +36,16 @@ impl Manifest {
         let writer = BufWriter::new(file);
         serde_json::to_writer_pretty(writer, self)?;
         Ok(())
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        use std::io::BufWriter;
+
+        // Open the file in read-only mode with buffer.
+        let mut buf = Vec::default();
+        let writer = BufWriter::new(&mut buf);
+        serde_json::to_writer_pretty(writer, self)?;
+        Ok(buf)
     }
 
     pub fn parse_str(f: impl AsRef<str>) -> Result<Manifest, Error> {

@@ -43,8 +43,8 @@ impl super::RegistryCore for HttpRegistry {
 
     async fn upload_manifest(
         &self,
+        container_name: &str,
         manifest: &Manifest,
-        manifest_bytes: &Vec<u8>,
         tags: &Vec<String>,
     ) -> Result<(), Error> {
         for t in tags.iter() {
@@ -53,7 +53,12 @@ impl super::RegistryCore for HttpRegistry {
                 .method(http::Method::PUT)
                 .uri(post_target_uri.clone())
                 .header("Content-Type", manifest.media_type());
-            let request = req_builder.body(Body::from(manifest_bytes.clone()))?;
+
+            let mut manifest: Manifest = manifest.clone();
+            manifest.tag = Some(t.clone());
+            manifest.name = Some(container_name.to_string());
+
+            let request = req_builder.body(Body::from(manifest.to_bytes()?))?;
             let mut r: Response<Body> = self.http_client.request(request).await?;
 
             if r.status() != StatusCode::CREATED {

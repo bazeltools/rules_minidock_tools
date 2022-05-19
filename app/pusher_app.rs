@@ -27,6 +27,7 @@ pub struct PusherConfig {
     pub registry: String,
     registry_type: String,
     pub repository: String,
+    pub container_name: String,
     pub container_tags: Option<Vec<String>>,
     pub container_tag_file: Option<String>,
 }
@@ -260,12 +261,9 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // First lets upload the manifest keyed by the digest.
-    let (manifest_sha, _) = Sha256Value::from_path(&manifest_path).await?;
-    let mut final_tags = tags.clone();
-    final_tags.push(format!("sha256:{}", manifest_sha));
 
     destination_registry
-        .upload_manifest(&manifest, &manifest_bytes, &final_tags)
+        .upload_manifest(&pusher_config.container_name, &manifest, &tags)
         .await?;
 
     Ok(())

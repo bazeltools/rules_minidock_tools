@@ -31,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let cfg_path = PathBuf::from("config.json");
     let manifest_path = PathBuf::from("manifest.json");
 
-    let mut manifest = Manifest::parse_str(&manifest_ret.content)?;
+    let manifest = Manifest::parse_str(&manifest_ret.content)?;
     let config_str = registry
         .fetch_config_as_string(&manifest.config.digest)
         .await?;

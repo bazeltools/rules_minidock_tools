@@ -99,6 +99,8 @@ impl<'de> Deserialize<'de> for Manifest {
             pub schema_version: u16,
             #[serde(rename = "mediaType")]
             pub media_type: String,
+            pub tag: Option<String>,
+            pub name: Option<String>,
             pub config: BlobReference,
             pub layers: Vec<BlobReference>,
         }
@@ -114,6 +116,8 @@ impl<'de> Deserialize<'de> for Manifest {
             specification_type,
             config: r.config,
             layers: r.layers,
+            tag: r.tag,
+            name: r.name,
         })
     }
 }
@@ -130,6 +134,9 @@ impl Serialize for Manifest {
         state.serialize_field("schemaVersion", &self.schema_version)?;
         state.serialize_field("config", &self.config)?;
         state.serialize_field("layers", &self.layers)?;
+        state.serialize_field("name", &self.name)?;
+        state.serialize_field("tag", &self.tag)?;
+
         state.end()
     }
 }
