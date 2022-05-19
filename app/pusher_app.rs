@@ -120,7 +120,6 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .await?;
 
-    let mut same_registry = false;
     let source_registry = if let Some(source_remote_metadata) =
         upload_metadata.remote_metadata.as_ref()
     {
@@ -137,30 +136,10 @@ async fn main() -> Result<(), anyhow::Error> {
                 eprintln!("Warning, source image has a specified repository but no registry. Presuming neither are present");
                 None
             }
-            (Some(registry), Some(repository)) => {
-                if registry == &pusher_config.registry {
-                    same_registry = true;
-                    if repository == &pusher_config.repository {
-                        Some(destination_registry.clone())
-                    } else {
-                        Some(
-                            rules_minidock_tools::registry::from_maybe_domain_and_name(
-                                &registry,
-                                &repository,
-                            )
-                            .await?,
-                        )
-                    }
-                } else {
-                    Some(
-                        rules_minidock_tools::registry::from_maybe_domain_and_name(
-                            &registry,
-                            &repository,
-                        )
-                        .await?,
-                    )
-                }
-            }
+            (Some(registry), Some(repository)) => Some(
+                rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository)
+                    .await?,
+            ),
         }
     } else {
         None
@@ -189,6 +168,10 @@ async fn main() -> Result<(), anyhow::Error> {
             let source_registry_name = source_registry.registry_name();
             let destination_registry_name = destination_registry.registry_name();
 
+            if opt.verbose {
+                eprintln!("Attempting same registry copy");
+            }
+
             for missing in missing_digests.iter() {
                 if source_registry.blob_exists(&missing.digest).await? {
                     if let Err(e) = destination_registry
@@ -198,7 +181,14 @@ async fn main() -> Result<(), anyhow::Error> {
                         if opt.verbose {
                             eprintln!("Failed to copy a missing digest between remote repos, will continue: digest: {:#?}, from: {}, to: {}; error: {:#?}", &missing.digest, &source_registry_name, &destination_registry_name, e);
                         }
+                    } else {
+                        eprintln!("Copy returned a success?")
                     }
+                } else if opt.verbose {
+                    eprintln!(
+                        "Attempted to find digest: {:#?} in source registry, but it wasn't found",
+                        missing.digest
+                    );
                 }
             }
 

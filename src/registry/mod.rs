@@ -38,7 +38,7 @@ pub trait CopyOperations: Sync + Send {
         &self,
         source_registry: &RegistryName,
         digest: &str,
-    ) -> Result<bool, Error>;
+    ) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]

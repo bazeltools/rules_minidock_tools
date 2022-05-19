@@ -17,7 +17,7 @@ impl CopyOperations for super::HttpRegistry {
         &self,
         source_registry_name: &RegistryName,
         digest: &str,
-    ) -> Result<bool, Error> {
+    ) -> Result<(), Error> {
         let uri = self.repository_uri_from_path(format!(
             "/blobs/uploads/?mount={}from={}",
             digest, source_registry_name
@@ -30,8 +30,8 @@ impl CopyOperations for super::HttpRegistry {
         )
         .await?;
 
-        if r.status() != StatusCode::CREATED {
-            Ok(true)
+        if r.status() == StatusCode::CREATED {
+            Ok(())
         } else {
             bail!("Failed to request {:#?} -- {:#?}", uri, r.status().as_str())
         }
