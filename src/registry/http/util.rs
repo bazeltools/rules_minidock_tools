@@ -79,7 +79,7 @@ pub(super) async fn request_path_in_repository_as_string(
         )
     }
 
-    let content_string = metadata.to_string();
+    let content_string = metadata;
 
     match r.headers().get("content-type") {
         Some(c) => Ok(ContentAndContentType {

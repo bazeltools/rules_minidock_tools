@@ -17,6 +17,9 @@ struct Opt {
 
     #[clap(long)]
     digest: String,
+
+    #[clap(long)]
+    architecture: String,
 }
 
 #[tokio::main]

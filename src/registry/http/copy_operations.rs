@@ -19,7 +19,7 @@ impl CopyOperations for super::HttpRegistry {
         digest: &str,
     ) -> Result<(), Error> {
         let uri = self.repository_uri_from_path(format!(
-            "/blobs/uploads/?mount={}from={}",
+            "/blobs/uploads/?mount={}&from={}",
             digest, source_registry_name
         ))?;
 
