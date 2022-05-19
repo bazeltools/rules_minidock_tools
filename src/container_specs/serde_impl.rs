@@ -1,12 +1,10 @@
-use std::path::Path;
-
 use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 
 use super::{
     blob_reference::BlobReference, blob_reference::BlobReferenceType, manifest::Manifest,
     SpecificationType,
 };
-use anyhow::{bail, Error};
+
 use serde::de::Error as SerdeError;
 
 impl<'de> Deserialize<'de> for BlobReference {

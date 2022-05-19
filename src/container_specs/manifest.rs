@@ -1,13 +1,10 @@
 use std::path::Path;
 
-use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
-
 use super::{
     blob_reference::{BlobReference, BlobReferenceType},
     SpecificationType,
 };
-use anyhow::{bail, Error};
-use serde::de::Error as SerdeError;
+use anyhow::Error;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct Manifest {

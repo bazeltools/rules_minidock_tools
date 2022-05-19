@@ -81,7 +81,7 @@ pub async fn merge(
             }
             let (compressed_sha_v, compressed_size) = Sha256Value::from_path(&pb).await?;
             let (inner_sha_v, uncompressed_size) = Sha256Value::from_path_uncompressed(&pb).await?;
-            let sha_str_fmt = format!("sha256:{}", inner_sha_v);
+            let _sha_str_fmt = format!("sha256:{}", inner_sha_v);
             cfg.add_layer(&inner_sha_v);
 
             manifest.add_layer(
