@@ -3,7 +3,7 @@ mod util;
 
 use std::time::Duration;
 
-use crate::container_specs::oci_types::Manifest;
+use crate::container_specs::manifest::Manifest;
 use crate::registry::http::util::{dump_body_to_string, redirect_uri_fetch};
 
 use anyhow::{bail, Error};
@@ -52,7 +52,7 @@ impl super::RegistryCore for HttpRegistry {
             let req_builder = http::request::Builder::default()
                 .method(http::Method::PUT)
                 .uri(post_target_uri.clone())
-                .header("Content-Type", &manifest.media_type);
+                .header("Content-Type", manifest.media_type());
             let request = req_builder.body(Body::from(manifest_bytes.clone()))?;
             let mut r: Response<Body> = self.http_client.request(request).await?;
 

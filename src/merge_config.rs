@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use anyhow::{Context, Error};
 
+use crate::container_specs::config::ConfigDelta;
+
 use super::PathPair;
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
@@ -25,7 +27,7 @@ pub struct RemoteMetadata {
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct Info {
     pub data: Option<PathPair>,
-    pub config: Option<super::container_specs::oci_types::config::Config>,
+    pub config: Option<ConfigDelta>,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]

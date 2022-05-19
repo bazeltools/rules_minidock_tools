@@ -1,5 +1,5 @@
 use crate::{
-    container_specs::oci_types::{self},
+    container_specs::{self, ConfigDelta, Manifest},
     hash::sha256_value::{DataLen, Sha256Value},
     PathPair,
 };
@@ -27,8 +27,8 @@ pub async fn merge(
     relative_search_path: &Option<PathBuf>,
 ) -> Result<
     (
-        oci_types::config::Config,
-        oci_types::manifest::Manifest,
+        container_specs::ConfigDelta,
+        container_specs::Manifest,
         LayerUploads,
     ),
     anyhow::Error,
@@ -40,8 +40,8 @@ pub async fn merge(
             .unwrap_or_else(|| PathBuf::from(rel))
     };
 
-    let mut cfg = oci_types::config::Config::default();
-    let mut manifest = oci_types::manifest::Manifest::default();
+    let mut cfg = ConfigDelta::default();
+    let mut manifest = Manifest::default();
 
     let mut layer_uploads = LayerUploads::default();
 
@@ -54,10 +54,7 @@ pub async fn merge(
                     cfg_path
                 )
             }
-            oci_types::config::merge_config(
-                &mut cfg,
-                &oci_types::config::Config::parse_file(&cfg_path)?,
-            )?;
+            cfg = ConfigDelta::parse_file(&cfg_path)?;
         }
 
         if let Some(base_manifest) = &remote_info.manifest {
@@ -69,16 +66,13 @@ pub async fn merge(
                     p
                 )
             }
-            oci_types::manifest::merge_manifest(
-                &mut manifest,
-                &oci_types::manifest::Manifest::parse_file(&p)?,
-            )?;
+            manifest = Manifest::parse_file(&p)?;
         }
     }
 
     for info in merge_config.infos.iter() {
         if let Some(config) = &info.config {
-            oci_types::config::merge_config(&mut cfg, config)?;
+            cfg.update_with(config);
         }
         if let Some(layer) = &info.data {
             let pb = rel_as_path(&layer.path);
@@ -88,9 +82,13 @@ pub async fn merge(
             let (compressed_sha_v, compressed_size) = Sha256Value::from_path(&pb).await?;
             let (inner_sha_v, uncompressed_size) = Sha256Value::from_path_uncompressed(&pb).await?;
             let sha_str_fmt = format!("sha256:{}", inner_sha_v);
-            cfg.add_layer(&sha_str_fmt);
+            cfg.add_layer(&inner_sha_v);
 
-            manifest.add_layer(compressed_sha_v, compressed_size);
+            manifest.add_layer(
+                compressed_sha_v,
+                compressed_size,
+                container_specs::blob_reference::BlobReferenceType::LayerGz,
+            );
             layer_uploads.layers.push(OutputLayer {
                 content: layer.clone(),
                 sha256: compressed_sha_v,

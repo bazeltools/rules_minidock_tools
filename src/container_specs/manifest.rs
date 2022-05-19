@@ -1,54 +1,30 @@
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize, Serializer};
 
+use super::{
+    blob_reference::{BlobReference, BlobReferenceType},
+    SpecificationType,
+};
 use anyhow::{bail, Error};
+use serde::de::Error as SerdeError;
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Default, Clone)]
-pub struct ManifestReference {
-    #[serde(rename = "mediaType")]
-    pub media_type: String,
-    pub size: u64,
-    pub digest: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct Manifest {
-    #[serde(rename = "schemaVersion")]
     pub schema_version: u16,
-
-    #[serde(rename = "mediaType")]
-    pub media_type: String,
-
-    pub config: ManifestReference,
-
-    pub layers: Vec<ManifestReference>,
-}
-
-pub fn merge_manifest<'a>(
-    current: &'a mut Manifest,
-    next: &Manifest,
-) -> Result<&'a mut Manifest, Error> {
-    if !current.layers.is_empty() && !next.layers.is_empty() {
-        bail!("Tried to merge manifests where both have layers, unclear what to do here. merge {:#?} into {:#?}", next, current)
-    }
-
-    current.layers = next.layers.clone();
-    Ok(current)
-}
-
-impl Default for Manifest {
-    fn default() -> Self {
-        Self {
-            schema_version: 2,
-            media_type: String::from("application/vnd.oci.image.manifest.v1+json"),
-            config: Default::default(),
-            layers: Default::default(),
-        }
-    }
+    pub specification_type: SpecificationType,
+    pub config: BlobReference,
+    pub layers: Vec<BlobReference>,
 }
 
 impl Manifest {
+    pub fn media_type(&self) -> &'static str {
+        match self.specification_type {
+            SpecificationType::Oci => "application/vnd.oci.image.config.v1+json",
+            SpecificationType::Docker => "application/vnd.docker.distribution.manifest.v2+json",
+        }
+    }
+
     pub fn write_file(&self, f: impl AsRef<Path>) -> Result<(), Error> {
         use std::fs::File;
         use std::io::BufWriter;
@@ -62,7 +38,11 @@ impl Manifest {
 
     pub fn parse_str(f: impl AsRef<str>) -> Result<Manifest, Error> {
         let u: Manifest = serde_json::from_str(f.as_ref())?;
+        Ok(u)
+    }
 
+    pub fn parse(manifest_bytes: &[u8]) -> Result<Manifest, Error> {
+        let u: Manifest = serde_json::from_slice(manifest_bytes)?;
         Ok(u)
     }
 
@@ -79,15 +59,24 @@ impl Manifest {
         Ok(u)
     }
 
+    pub fn set_specification_type(mut self, specification_type: SpecificationType) -> Manifest {
+        self.config.specification_type = specification_type;
+        self.layers
+            .iter_mut()
+            .map(|l| l.specification_type = specification_type)
+            .count();
+        self
+    }
+
     pub fn update_config(
         &mut self,
         compressed_sha_v: crate::hash::sha256_value::Sha256Value,
         compressed_size: crate::hash::sha256_value::DataLen,
     ) {
-        self.config = ManifestReference {
-            media_type: String::from("application/vnd.oci.image.layer.v1.tar+gzip"),
+        self.config = BlobReference {
             size: compressed_size.0 as u64,
             digest: format!("sha256:{}", compressed_sha_v),
+            ..self.config
         };
     }
 
@@ -95,9 +84,11 @@ impl Manifest {
         &mut self,
         compressed_sha_v: crate::hash::sha256_value::Sha256Value,
         compressed_size: crate::hash::sha256_value::DataLen,
+        blob_reference_type: BlobReferenceType,
     ) {
-        self.layers.push(ManifestReference {
-            media_type: String::from("application/vnd.oci.image.layer.v1.tar+gzip"),
+        self.layers.push(BlobReference {
+            blob_reference_type,
+            specification_type: self.specification_type,
             size: compressed_size.0 as u64,
             digest: format!("sha256:{}", compressed_sha_v),
         });

@@ -18,7 +18,7 @@ pub trait RegistryCore {
 
     async fn upload_manifest(
         &self,
-        manifest: &crate::container_specs::oci_types::Manifest,
+        manifest: &crate::container_specs::manifest::Manifest,
         manifest_bytes: &Vec<u8>,
         tags: &Vec<String>,
     ) -> Result<(), Error>;

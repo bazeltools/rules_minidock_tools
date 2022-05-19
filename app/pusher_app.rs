@@ -3,7 +3,9 @@ use anyhow::Context;
 
 use clap::Parser;
 
-use rules_minidock_tools::container_specs::oci_types;
+use rules_minidock_tools::container_specs::ConfigDelta;
+use rules_minidock_tools::container_specs::Manifest;
+use rules_minidock_tools::container_specs::SpecificationType;
 use rules_minidock_tools::hash::sha256_value::Sha256Value;
 
 use serde::{Deserialize, Serialize};
@@ -23,9 +25,20 @@ struct Opt {
 pub struct PusherConfig {
     pub merger_data: String,
     pub registry: String,
+    registry_type: String,
     pub repository: String,
     pub container_tags: Option<Vec<String>>,
     pub container_tag_file: Option<String>,
+}
+
+impl PusherConfig {
+    pub fn registry_type(&self) -> Result<SpecificationType, anyhow::Error> {
+        match self.registry_type.to_lowercase().as_str() {
+            "oci" => Ok(SpecificationType::Oci),
+            "docker" => Ok(SpecificationType::Docker),
+            other => bail!("Unknown registry type {}", other),
+        }
+    }
 }
 
 const BYTES_IN_MB: u64 = 1024 * 1024;
@@ -86,10 +99,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let merger_data_path = PathBuf::from(&pusher_config.merger_data);
 
     let config_path = merger_data_path.join("config.json");
-    let _config = oci_types::Config::parse_file(&config_path)?;
+    let _config = ConfigDelta::parse_file(&config_path)?;
     let manifest_path = merger_data_path.join("manifest.json");
     let manifest_bytes = std::fs::read(&manifest_path)?;
-    let manifest = oci_types::Manifest::parse(&manifest_bytes)?;
+    let manifest = Manifest::parse(&manifest_bytes)?;
 
     let tags = load_tags(&pusher_config)?;
     if tags.is_empty() {
@@ -227,6 +240,9 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     println!("All referenced layers present, just metadata uploads remaining");
+
+    let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
+
     let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
     let config_sha_printed = format!("sha256:{}", config_sha);
     let expected_sha = &manifest.config.digest;
