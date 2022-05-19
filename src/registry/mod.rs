@@ -28,14 +28,17 @@ pub struct RegistryName(String);
 
 impl std::fmt::Display for RegistryName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0);
-        Ok(())
+        write!(f, "{}", self.0)
     }
 }
 #[async_trait::async_trait]
 pub trait CopyOperations: Sync + Send {
     fn registry_name(&self) -> RegistryName;
-    async fn try_copy_from(&self, source_registry: &RegistryName, digest: &str) -> Result<bool, Error>;
+    async fn try_copy_from(
+        &self,
+        source_registry: &RegistryName,
+        digest: &str,
+    ) -> Result<bool, Error>;
 }
 
 #[async_trait::async_trait]

@@ -10,7 +10,6 @@ use rules_minidock_tools::hash::sha256_value::Sha256Value;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(name = "pusher app")]
@@ -22,7 +21,7 @@ struct Opt {
     cache_path: PathBuf,
 
     #[clap(long)]
-    verbose: bool
+    verbose: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
@@ -187,34 +186,39 @@ async fn main() -> Result<(), anyhow::Error> {
         );
 
         if let Some(source_registry) = &source_registry {
+            let source_registry_name = source_registry.registry_name();
+            let destination_registry_name = destination_registry.registry_name();
 
-        let source_registry_name = source_registry.registry_name();
-        let destination_registry_name = destination_registry.registry_name();
-
-        for missing in missing_digests.drain(..) {
-            if source_registry.blob_exists(&missing.digest).await? {
-                if let Err(e) = destination_registry.try_copy_from(&source_registry_name, &missing.digest).await {
-                    if opt.verbose {
-                        eprintln!("Failed to copy a missing digest between remote repos, will continue: digest: {:#?}, from: {}, to: {}; error: {:#?}", &missing.digest, &source_registry_name, &destination_registry_name, e);
+            for missing in missing_digests.drain(..) {
+                if source_registry.blob_exists(&missing.digest).await? {
+                    if let Err(e) = destination_registry
+                        .try_copy_from(&source_registry_name, &missing.digest)
+                        .await
+                    {
+                        if opt.verbose {
+                            eprintln!("Failed to copy a missing digest between remote repos, will continue: digest: {:#?}, from: {}, to: {}; error: {:#?}", &missing.digest, &source_registry_name, &destination_registry_name, e);
+                        }
                     }
                 }
             }
-        }
 
-        let mut v = Vec::default();
+            let mut v = Vec::default();
 
-        let prev_len = missing_digests.len();
-        for missing in missing_digests.drain(..) {
-            let exists = destination_registry.blob_exists(&missing.digest).await?;
-            if !exists {
-                v.push(missing);
+            let prev_len = missing_digests.len();
+            for missing in missing_digests.drain(..) {
+                let exists = destination_registry.blob_exists(&missing.digest).await?;
+                if !exists {
+                    v.push(missing);
+                }
             }
+            if v.len() != prev_len {
+                println!(
+                    "Uploaded {} blobs via copying between repos",
+                    prev_len - v.len()
+                );
+            }
+            std::mem::swap(&mut missing_digests, &mut v);
         }
-        if v.len() != prev_len {
-            println!("Uploaded {} blobs via copying between repos", prev_len - v.len());
-        }
-        std::mem::swap(&mut missing_digests, &mut v);
-    }
 
         let mut v = Vec::default();
         for missing in missing_digests.drain(..) {
