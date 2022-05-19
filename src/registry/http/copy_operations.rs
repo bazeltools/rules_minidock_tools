@@ -15,12 +15,12 @@ impl CopyOperations for super::HttpRegistry {
 
     async fn try_copy_from(
         &self,
-        source_registry: &RegistryName,
+        source_registry_name: &RegistryName,
         digest: &str,
     ) -> Result<bool, Error> {
         let uri = self.repository_uri_from_path(format!(
-            "/uploads/?mount={}from={}",
-            digest, source_registry
+            "/blobs/uploads/?mount={}from={}",
+            digest, source_registry_name
         ))?;
 
         let r = redirect_uri_fetch(
@@ -30,9 +30,7 @@ impl CopyOperations for super::HttpRegistry {
         )
         .await?;
 
-        if r.status() == StatusCode::NOT_FOUND {
-            Ok(false)
-        } else if r.status() == StatusCode::CREATED {
+        if r.status() != StatusCode::CREATED {
             Ok(true)
         } else {
             bail!("Failed to request {:#?} -- {:#?}", uri, r.status().as_str())

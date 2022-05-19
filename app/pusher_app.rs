@@ -189,7 +189,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let source_registry_name = source_registry.registry_name();
             let destination_registry_name = destination_registry.registry_name();
 
-            for missing in missing_digests.drain(..) {
+            for missing in missing_digests.iter() {
                 if source_registry.blob_exists(&missing.digest).await? {
                     if let Err(e) = destination_registry
                         .try_copy_from(&source_registry_name, &missing.digest)
