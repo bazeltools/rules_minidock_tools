@@ -24,6 +24,20 @@ pub trait RegistryCore {
     ) -> Result<(), Error>;
 }
 
+pub struct RegistryName(String);
+
+impl std::fmt::Display for RegistryName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0);
+        Ok(())
+    }
+}
+#[async_trait::async_trait]
+pub trait CopyOperations: Sync + Send {
+    fn registry_name(&self) -> RegistryName;
+    async fn try_copy_from(&self, source_registry: &RegistryName, digest: &str) -> Result<bool, Error>;
+}
+
 #[async_trait::async_trait]
 pub trait BlobStore {
     async fn blob_exists(&self, digest: &str) -> Result<bool, Error>;
@@ -38,9 +52,9 @@ pub trait BlobStore {
     async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64) -> Result<(), Error>;
 }
 
-pub trait Registry: RegistryCore + BlobStore {}
+pub trait Registry: RegistryCore + BlobStore + CopyOperations {}
 
-impl<T> Registry for T where T: RegistryCore + BlobStore {}
+impl<T> Registry for T where T: RegistryCore + BlobStore + CopyOperations {}
 
 pub async fn from_maybe_domain_and_name<S: AsRef<str> + Send, S2: AsRef<str> + Send>(
     registry_base: S,

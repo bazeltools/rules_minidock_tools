@@ -1,6 +1,6 @@
 mod blob;
 mod util;
-
+mod copy_operations;
 use std::time::Duration;
 
 use crate::container_specs::manifest::Manifest;
