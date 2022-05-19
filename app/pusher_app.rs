@@ -181,8 +181,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         if opt.verbose {
                             eprintln!("Failed to copy a missing digest between remote repos, will continue: digest: {:#?}, from: {}, to: {}; error: {:#?}", &missing.digest, &source_registry_name, &destination_registry_name, e);
                         }
-                    } else {
-                        eprintln!("Copy returned a success?")
                     }
                 } else if opt.verbose {
                     eprintln!(
