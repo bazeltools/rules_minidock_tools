@@ -2,6 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::hash::sha256_value::Sha256Value;
+use crate::registry::ops::BYTES_IN_MB;
 use crate::registry::BlobStore;
 use anyhow::{bail, Context, Error};
 use http::Uri;
@@ -24,7 +25,7 @@ impl BlobStore for super::HttpRegistry {
     async fn blob_exists(&self, digest: &str) -> Result<bool, Error> {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
 
-        let r = redirect_uri_fetch(
+        let mut r = redirect_uri_fetch(
             &self.http_client,
             |req| req.method(http::Method::HEAD),
             &uri,
@@ -36,7 +37,12 @@ impl BlobStore for super::HttpRegistry {
         } else if r.status() == StatusCode::OK {
             Ok(true)
         } else {
-            bail!("Failed to request {:#?} -- {:#?}", uri, r.status().as_str())
+            bail!(
+                "Failed call for blob exists {:#?} -- {:#?}, body: {:#?}",
+                uri,
+                r.status().as_str(),
+                dump_body_to_string(&mut r).await?
+            )
         }
     }
 
@@ -44,8 +50,8 @@ impl BlobStore for super::HttpRegistry {
         &self,
         target_file: &Path,
         digest: &str,
-        length: u64
-        , progress_bar: Option<ProgressBar>
+        length: u64,
+        progress_bar: Option<ProgressBar>,
     ) -> Result<(), Error> {
         let target_file = target_file.to_path_buf();
 
@@ -72,9 +78,8 @@ impl BlobStore for super::HttpRegistry {
 
             total_bytes += data.len();
 
-
             if let Some(progress_bar) = &progress_bar {
-                progress_bar.inc(data.len() as u64);
+                progress_bar.set_position(total_bytes as u64 / BYTES_IN_MB);
             }
 
             if !data.is_empty() {
@@ -102,7 +107,13 @@ impl BlobStore for super::HttpRegistry {
         Ok(())
     }
 
-    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64, progress_bar: Option<ProgressBar>) -> Result<(), Error> {
+    async fn upload_blob(
+        &self,
+        local_path: &Path,
+        digest: &str,
+        length: u64,
+        progress_bar: Option<ProgressBar>,
+    ) -> Result<(), Error> {
         let post_target_uri = self.repository_uri_from_path("/blobs/uploads/")?;
         // We expect our POST request to get a location header of where to perform the real upload to.
         let req_builder = http::request::Builder::default()
@@ -143,7 +154,7 @@ impl BlobStore for super::HttpRegistry {
                 let mut cntr = stream_byte_ref.lock().await;
                 *cntr += chunk.len();
                 if let Some(progress_bar) = &progress_bar {
-                    progress_bar.inc(chunk.len() as u64);
+                    progress_bar.set_position(*cntr as u64 / BYTES_IN_MB);
                 }
                 yield chunk
             }

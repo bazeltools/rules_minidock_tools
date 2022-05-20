@@ -51,11 +51,17 @@ pub trait BlobStore {
         &self,
         target_file: &Path,
         digest: &str,
-        length: u64, progress_bar: Option<ProgressBar>
-
+        length: u64,
+        progress_bar: Option<ProgressBar>,
     ) -> Result<(), Error>;
 
-    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64, progress_bar: Option<ProgressBar>) -> Result<(), Error>;
+    async fn upload_blob(
+        &self,
+        local_path: &Path,
+        digest: &str,
+        length: u64,
+        progress_bar: Option<ProgressBar>,
+    ) -> Result<(), Error>;
 }
 
 pub trait Registry: RegistryCore + BlobStore + CopyOperations {}

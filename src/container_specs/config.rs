@@ -20,7 +20,7 @@ pub struct ExecutionConfig {
     pub env: Option<Vec<String>>,
 
     // A list of arguments to use as the command to execute when the container starts. These values act as defaults and may be replaced by an entrypoint specified when creating a container.
-    #[serde(rename = "Entrypoint", alias="entrypoint")]
+    #[serde(rename = "Entrypoint", alias = "entrypoint")]
     pub entrypoint: Option<Vec<String>>,
 
     // Default arguments to the entrypoint of the container. These values act as defaults and may be replaced by any specified when creating a container. If an Entrypoint value is not specified, then the first entry of the Cmd array SHOULD be interpreted as the executable to run.

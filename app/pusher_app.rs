@@ -50,8 +50,6 @@ impl PusherConfig {
     }
 }
 
-
-
 fn load_tags(pusher_config: &PusherConfig) -> Result<Vec<String>, anyhow::Error> {
     let mut res = Vec::default();
     if let Some(tags) = &pusher_config.container_tags {
@@ -140,40 +138,32 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     let mut local_digests: HashMap<String, PathBuf> = HashMap::default();
-    for local_data in upload_metadata
-    .layer_configs
-    .iter()
-{
-    let local_layer_path: PathBuf = (&local_data.layer_data).into();
-    local_digests.insert(local_data.outer_sha256.clone(), local_layer_path);
-}
+    for local_data in upload_metadata.layer_configs.iter() {
+        let local_layer_path: PathBuf = (&local_data.layer_data).into();
+        local_digests.insert(local_data.outer_sha256.clone(), local_layer_path);
+    }
 
-let cache_path = opt.cache_path.join("tmp");
-let tmp_cache_path = opt.cache_path.join("tmp");
-if !tmp_cache_path.exists() {
-    std::fs::create_dir_all(&tmp_cache_path)?;
-}
-
+    let cache_path = opt.cache_path.join("tmp");
+    let tmp_cache_path = opt.cache_path.join("tmp");
+    if !tmp_cache_path.exists() {
+        std::fs::create_dir_all(&tmp_cache_path)?;
+    }
 
     let request_state = Arc::new(RequestState {
         local_digests,
         destination_registry: Arc::clone(&destination_registry),
         source_registry,
-        cache_path
+        cache_path,
     });
 
     let mp = Arc::new(MultiProgress::new());
 
     mp.set_alignment(indicatif::MultiProgressAlignment::Bottom);
 
-    let pb_main = mp.add(ProgressBar::new(
-        manifest.layers.len() as u64
-    ));
-
+    let pb_main = mp.add(ProgressBar::new(manifest.layers.len() as u64));
 
     let mut tokio_data = Vec::default();
     for (slot, layer) in manifest.layers.iter().enumerate() {
-
         let layer = layer.clone();
         let request_state = Arc::clone(&request_state);
         let pb_main = pb_main.clone();
@@ -181,7 +171,13 @@ if !tmp_cache_path.exists() {
 
         tokio_data.push(tokio::spawn(async move {
             pb_main.tick();
-            let r = rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, slot, mp).await;
+            let r = rules_minidock_tools::registry::ops::ensure_present(
+                &layer,
+                request_state,
+                slot,
+                mp,
+            )
+            .await;
             pb_main.inc(1);
             pb_main.tick();
             r
@@ -193,7 +189,6 @@ if !tmp_cache_path.exists() {
         actions_taken.merge(&join_result.await??);
     }
     pb_main.finish();
-
 
     println!("All referred to layers have been ensured present, actions taken:\n{}\nMetadata uploads commencing", actions_taken);
 
@@ -211,7 +206,12 @@ if !tmp_cache_path.exists() {
         .await?
     {
         destination_registry
-            .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64, None)
+            .upload_blob(
+                &config_path,
+                &config_sha_printed,
+                config_sha_len.0 as u64,
+                None,
+            )
             .await?;
     }
 
