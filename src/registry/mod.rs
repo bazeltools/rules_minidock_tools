@@ -1,8 +1,9 @@
 mod http;
-
+pub mod ops;
 use std::{path::Path, sync::Arc};
 
 use anyhow::Error;
+use indicatif::ProgressBar;
 
 #[derive(Debug, Clone)]
 pub struct ContentAndContentType {
@@ -24,6 +25,7 @@ pub trait RegistryCore {
     ) -> Result<(), Error>;
 }
 
+#[derive(Debug)]
 pub struct RegistryName(String);
 
 impl std::fmt::Display for RegistryName {
@@ -49,10 +51,11 @@ pub trait BlobStore {
         &self,
         target_file: &Path,
         digest: &str,
-        length: u64,
+        length: u64, progress_bar: Option<ProgressBar>
+
     ) -> Result<(), Error>;
 
-    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64) -> Result<(), Error>;
+    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64, progress_bar: Option<ProgressBar>) -> Result<(), Error>;
 }
 
 pub trait Registry: RegistryCore + BlobStore + CopyOperations {}

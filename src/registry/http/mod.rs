@@ -13,8 +13,6 @@ use http::{Response, StatusCode};
 use hyper::{Body, Client};
 use hyper_rustls::ConfigBuilderExt;
 
-use sha2::Digest;
-
 use tokio::time::timeout;
 
 use self::util::request_path_in_repository_as_string;

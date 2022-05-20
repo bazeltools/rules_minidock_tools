@@ -6,7 +6,6 @@ use hyper::body::HttpBody as _;
 
 use hyper::Body;
 
-use sha2::Digest;
 use tokio::io::AsyncWriteExt;
 
 use super::HttpCli;

@@ -3,8 +3,6 @@ use anyhow::{bail, Error};
 
 use http::StatusCode;
 
-use sha2::Digest;
-
 use super::util::redirect_uri_fetch;
 
 #[async_trait::async_trait]

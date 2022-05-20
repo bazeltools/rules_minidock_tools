@@ -44,7 +44,8 @@ impl BlobStore for super::HttpRegistry {
         &self,
         target_file: &Path,
         digest: &str,
-        length: u64,
+        length: u64
+        , progress_bar: Option<ProgressBar>
     ) -> Result<(), Error> {
         let target_file = target_file.to_path_buf();
 
@@ -70,6 +71,12 @@ impl BlobStore for super::HttpRegistry {
             let data = chunk?;
 
             total_bytes += data.len();
+
+
+            if let Some(progress_bar) = &progress_bar {
+                progress_bar.inc(data.len() as u64);
+            }
+
             if !data.is_empty() {
                 hasher.update(&data[..]);
             }
@@ -95,7 +102,7 @@ impl BlobStore for super::HttpRegistry {
         Ok(())
     }
 
-    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64) -> Result<(), Error> {
+    async fn upload_blob(&self, local_path: &Path, digest: &str, length: u64, progress_bar: Option<ProgressBar>) -> Result<(), Error> {
         let post_target_uri = self.repository_uri_from_path("/blobs/uploads/")?;
         // We expect our POST request to get a location header of where to perform the real upload to.
         let req_builder = http::request::Builder::default()
@@ -127,9 +134,6 @@ impl BlobStore for super::HttpRegistry {
         let total_uploaded_bytes = Arc::new(Mutex::new(0));
         let stream_byte_ref = Arc::clone(&total_uploaded_bytes);
 
-        let bar = Arc::new(Mutex::new(ProgressBar::new(length)));
-        let bar_for_stream = Arc::clone(&bar);
-
         let stream: async_stream::AsyncStream<
             Result<bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>,
             _,
@@ -138,8 +142,9 @@ impl BlobStore for super::HttpRegistry {
                 let chunk = chunk?;
                 let mut cntr = stream_byte_ref.lock().await;
                 *cntr += chunk.len();
-                let progress_bar = bar_for_stream.lock().await;
-                progress_bar.inc(chunk.len() as u64);
+                if let Some(progress_bar) = &progress_bar {
+                    progress_bar.inc(chunk.len() as u64);
+                }
                 yield chunk
             }
         };
@@ -156,7 +161,6 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r: Response<Body> = self.http_client.request(request).await?;
 
-        bar.lock().await.finish();
         let total_uploaded_bytes: usize = {
             let m = total_uploaded_bytes.lock().await;
             *m

@@ -3,13 +3,19 @@ use anyhow::Context;
 
 use clap::Parser;
 
+use indicatif::MultiProgress;
+use indicatif::ProgressBar;
 use rules_minidock_tools::container_specs::ConfigDelta;
 use rules_minidock_tools::container_specs::Manifest;
 use rules_minidock_tools::container_specs::SpecificationType;
 use rules_minidock_tools::hash::sha256_value::Sha256Value;
 
+use rules_minidock_tools::registry::ops::ActionsTaken;
+use rules_minidock_tools::registry::ops::RequestState;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[clap(name = "pusher app")]
@@ -44,19 +50,7 @@ impl PusherConfig {
     }
 }
 
-const BYTES_IN_MB: u64 = 1024 * 1024;
-const BYTES_IN_GB: u64 = BYTES_IN_MB * 1024;
 
-fn size_to_string(size: u64) -> String {
-    let gb = size / BYTES_IN_GB;
-    let mb = size / BYTES_IN_MB;
-    if gb > 0 {
-        let gb_flt = (gb as f64) + ((mb % 1024) as f64) / 1024_f64;
-        format!("{} GB", gb_flt)
-    } else {
-        format!("{} MB", mb)
-    }
-}
 
 fn load_tags(pusher_config: &PusherConfig) -> Result<Vec<String>, anyhow::Error> {
     let mut res = Vec::default();
@@ -145,122 +139,63 @@ async fn main() -> Result<(), anyhow::Error> {
         None
     };
 
-    let mut missing_size = 0;
-    let mut missing_digests = Vec::default();
-    for layer in manifest.layers.iter() {
-        let size = layer.size;
-        let digest = &layer.digest;
-        let exists = destination_registry.blob_exists(digest).await?;
-        if !exists {
-            missing_size += size;
-            missing_digests.push(layer.clone());
-        }
+    let mut local_digests: HashMap<String, PathBuf> = HashMap::default();
+    for local_data in upload_metadata
+    .layer_configs
+    .iter()
+{
+    let local_layer_path: PathBuf = (&local_data.layer_data).into();
+    local_digests.insert(local_data.outer_sha256.clone(), local_layer_path);
+}
+
+let cache_path = opt.cache_path.join("tmp");
+let tmp_cache_path = opt.cache_path.join("tmp");
+if !tmp_cache_path.exists() {
+    std::fs::create_dir_all(&tmp_cache_path)?;
+}
+
+
+    let request_state = Arc::new(RequestState {
+        local_digests,
+        destination_registry: Arc::clone(&destination_registry),
+        source_registry,
+        cache_path
+    });
+
+    let mp = Arc::new(MultiProgress::new());
+
+    mp.set_alignment(indicatif::MultiProgressAlignment::Bottom);
+
+    let pb_main = mp.add(ProgressBar::new(
+        manifest.layers.len() as u64
+    ));
+
+
+    let mut tokio_data = Vec::default();
+    for (slot, layer) in manifest.layers.iter().enumerate() {
+
+        let layer = layer.clone();
+        let request_state = Arc::clone(&request_state);
+        let pb_main = pb_main.clone();
+        let mp = mp.clone();
+
+        tokio_data.push(tokio::spawn(async move {
+            pb_main.tick();
+            let r = rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, slot, mp).await;
+            pb_main.inc(1);
+            pb_main.tick();
+            r
+        }))
     }
 
-    if missing_size > 0 {
-        println!(
-            "Missing {} layers, total size: {}",
-            missing_digests.len(),
-            size_to_string(missing_size)
-        );
-
-        if let Some(source_registry) = &source_registry {
-            let source_registry_name = source_registry.registry_name();
-            let destination_registry_name = destination_registry.registry_name();
-
-            if opt.verbose {
-                eprintln!("Attempting same registry copy");
-            }
-
-            for missing in missing_digests.iter() {
-                if source_registry.blob_exists(&missing.digest).await? {
-                    if let Err(e) = destination_registry
-                        .try_copy_from(&source_registry_name, &missing.digest)
-                        .await
-                    {
-                        if opt.verbose {
-                            eprintln!("Failed to copy a missing digest between remote repos, will continue: digest: {:#?}, from: {}, to: {}; error: {:#?}", &missing.digest, &source_registry_name, &destination_registry_name, e);
-                        }
-                    }
-                } else if opt.verbose {
-                    eprintln!(
-                        "Attempted to find digest: {:#?} in source registry, but it wasn't found",
-                        missing.digest
-                    );
-                }
-            }
-
-            let mut v = Vec::default();
-
-            let prev_len = missing_digests.len();
-            for missing in missing_digests.drain(..) {
-                let exists = destination_registry.blob_exists(&missing.digest).await?;
-                if !exists {
-                    v.push(missing);
-                }
-            }
-            if v.len() != prev_len {
-                println!(
-                    "Uploaded {} blobs via copying between repos",
-                    prev_len - v.len()
-                );
-            }
-            std::mem::swap(&mut missing_digests, &mut v);
-        }
-
-        let mut v = Vec::default();
-        for missing in missing_digests.drain(..) {
-            if let Some(local_data) = upload_metadata
-                .layer_configs
-                .iter()
-                .find(|e| e.outer_sha256 == missing.digest)
-            {
-                let local_layer_path: PathBuf = (&local_data.layer_data).into();
-                eprintln!("Found {} locally, uploading..", local_data.outer_sha256);
-                destination_registry
-                    .upload_blob(
-                        &local_layer_path,
-                        &local_data.outer_sha256,
-                        local_data.compressed_length,
-                    )
-                    .await?
-            } else {
-                v.push(missing);
-            }
-        }
-
-        std::mem::swap(&mut missing_digests, &mut v);
-
-        if !missing_digests.is_empty() {
-            if missing_digests.len() as u64 != missing_size {
-                println!("We uploaded the locally found layers - {} , but we still have remaining {} layers", missing_size - missing_digests.len() as u64, missing_digests.len());
-            }
-
-            match source_registry {
-        Some(source_registry) => {
-            let cache_path = opt.cache_path.join("tmp");
-            let tmp_cache_path = opt.cache_path.join("tmp");
-            if !tmp_cache_path.exists() {
-                std::fs::create_dir_all(&tmp_cache_path)?;
-            }
-            for missing in missing_digests.iter() {
-                let expected_path = cache_path.join(missing.digest.strip_prefix("sha256:").unwrap_or(&missing.digest));
-                if !expected_path.exists() {
-                    let local_storage = tempfile::NamedTempFile::new_in(&tmp_cache_path)?;
-                    eprintln!("Downloading from remote registry: {}, size: {}", &missing.digest, size_to_string(missing.size));
-                    source_registry.download_blob(local_storage.path(), &missing.digest, missing.size).await?;
-                    std::fs::rename(local_storage.path(), cache_path.join(missing.digest.strip_prefix("sha256:").unwrap_or(&missing.digest)))?;
-                }
-                destination_registry.upload_blob(&expected_path, &missing.digest, missing.size).await?;
-            }
-        }
-        None =>
-            bail!("We still have remaining missing digests that we dont have locally. However we haven't been configured with a source repository, so we have no means to fetch them.")
-        }
-        }
+    let mut actions_taken = ActionsTaken::default();
+    for join_result in tokio_data {
+        actions_taken.merge(&join_result.await??);
     }
+    pb_main.finish();
 
-    println!("All referenced layers present, just metadata uploads remaining");
+
+    println!("All referred to layers have been ensured present, actions taken:\n{}\nMetadata uploads commencing", actions_taken);
 
     let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
 
@@ -276,7 +211,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .await?
     {
         destination_registry
-            .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64)
+            .upload_blob(&config_path, &config_sha_printed, config_sha_len.0 as u64, None)
             .await?;
     }
 
