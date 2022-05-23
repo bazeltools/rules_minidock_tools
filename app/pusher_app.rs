@@ -174,7 +174,6 @@ async fn main() -> Result<(), anyhow::Error> {
             let r = rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp)
                 .await;
             pb_main.inc(1);
-            pb_main.tick();
             r
         }))
     }
