@@ -5,6 +5,7 @@ use clap::Parser;
 
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
+use indicatif::ProgressDrawTarget;
 use rules_minidock_tools::container_specs::ConfigDelta;
 use rules_minidock_tools::container_specs::Manifest;
 use rules_minidock_tools::container_specs::SpecificationType;
@@ -156,7 +157,9 @@ async fn main() -> Result<(), anyhow::Error> {
         cache_path,
     });
 
-    let mp = Arc::new(MultiProgress::new());
+    let mp = Arc::new(MultiProgress::with_draw_target(
+        ProgressDrawTarget::stderr_with_hz(12),
+    ));
 
     mp.set_alignment(indicatif::MultiProgressAlignment::Bottom);
 

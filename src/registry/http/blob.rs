@@ -1,6 +1,5 @@
 use std::path::Path;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use crate::hash::sha256_value::Sha256Value;
 use crate::registry::ops::BYTES_IN_MB;
@@ -75,17 +74,12 @@ impl BlobStore for super::HttpRegistry {
         let mut total_bytes = 0;
         let mut hasher = sha2::Sha256::new();
 
-        let mut last_update = Instant::now();
-
         while let Some(chunk) = body.next().await {
             let data = chunk?;
             total_bytes += data.len();
 
             if let Some(progress_bar) = &progress_bar {
-                if last_update.elapsed() > Duration::from_millis(800) {
-                    last_update = Instant::now();
-                    progress_bar.set_position(total_bytes as u64 / BYTES_IN_MB);
-                }
+                progress_bar.set_position(total_bytes as u64 / BYTES_IN_MB);
             }
 
             if !data.is_empty() {
@@ -155,7 +149,6 @@ impl BlobStore for super::HttpRegistry {
             Result<bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>,
             _,
         > = async_stream::try_stream! {
-            let mut last_update = Instant::now();
 
             while let Some(chunk) = file_reader_stream.next().await {
                 let chunk = chunk?;
@@ -163,10 +156,7 @@ impl BlobStore for super::HttpRegistry {
                 *cntr += chunk.len();
 
                 if let Some(progress_bar) = &progress_bar {
-                    if last_update.elapsed() > Duration::from_millis(800) {
-                        last_update = Instant::now();
                         progress_bar.set_position(*cntr as u64 / BYTES_IN_MB);
-                    }
                 }
                 yield chunk
             }

@@ -173,6 +173,7 @@ pub async fn ensure_present(
     } else {
         blob.digest.clone()
     };
+
     let message_style = ProgressStyle::with_template("{prefix:80} {msg}").unwrap();
     let io_style =
         ProgressStyle::with_template("{prefix:80} {msg:25} {pos}/{len:4}MB {bar:60.green/yellow}")
@@ -181,6 +182,7 @@ pub async fn ensure_present(
     let message_pb = ProgressBar::new(1);
     message_pb.set_style(message_style.clone());
     let pb = mp.add(message_pb);
+
     pb.set_prefix(prefix_str);
 
     pb.set_message("Checking destination presence");
