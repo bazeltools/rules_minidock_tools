@@ -185,9 +185,9 @@ async fn main() -> Result<(), anyhow::Error> {
     for join_result in tokio_data {
         actions_taken.merge(&join_result.await??);
     }
-    pb_main.finish();
 
-    println!("All referred to layers have been ensured present, actions taken:\n{}\nMetadata uploads commencing", actions_taken);
+    pb_main.finish_and_clear();
+    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nMetadata uploads commencing", actions_taken);
 
     let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
 
