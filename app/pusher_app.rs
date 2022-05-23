@@ -164,6 +164,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let mut tokio_data = Vec::default();
     for (slot, layer) in manifest.layers.iter().enumerate() {
+        let slot = slot + 1;
         let layer = layer.clone();
         let request_state = Arc::clone(&request_state);
         let pb_main = pb_main.clone();
