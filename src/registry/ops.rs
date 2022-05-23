@@ -161,7 +161,6 @@ impl RequestState {
 pub async fn ensure_present(
     blob: &BlobReference,
     request_state: Arc<RequestState>,
-    slot: usize,
     mp: Arc<MultiProgress>,
 ) -> Result<ActionsTaken, Error> {
     let prefix_str = if let Some(local_layer_path) = request_state.local_digests.get(&blob.digest) {
@@ -181,7 +180,7 @@ pub async fn ensure_present(
 
     let message_pb = ProgressBar::new(1);
     message_pb.set_style(message_style.clone());
-    let pb = mp.insert(slot, message_pb);
+    let pb = mp.add(message_pb);
     pb.set_prefix(prefix_str);
 
     pb.set_message("Checking destination presence");

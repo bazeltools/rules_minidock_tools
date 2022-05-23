@@ -163,8 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let pb_main = mp.add(ProgressBar::new(manifest.layers.len() as u64));
 
     let mut tokio_data = Vec::default();
-    for (slot, layer) in manifest.layers.iter().enumerate() {
-        let slot = slot + 1;
+    for layer in manifest.layers.iter() {
         let layer = layer.clone();
         let request_state = Arc::clone(&request_state);
         let pb_main = pb_main.clone();
@@ -172,13 +171,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
         tokio_data.push(tokio::spawn(async move {
             pb_main.tick();
-            let r = rules_minidock_tools::registry::ops::ensure_present(
-                &layer,
-                request_state,
-                slot,
-                mp,
-            )
-            .await;
+            let r = rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp)
+                .await;
             pb_main.inc(1);
             pb_main.tick();
             r
