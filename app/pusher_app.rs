@@ -13,6 +13,7 @@ use rules_minidock_tools::hash::sha256_value::Sha256Value;
 
 use rules_minidock_tools::registry::ops::ActionsTaken;
 use rules_minidock_tools::registry::ops::RequestState;
+use rules_minidock_tools::registry::Registry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -34,7 +35,7 @@ struct Opt {
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub struct PusherConfig {
     pub merger_data: String,
-    pub registry: String,
+    pub registries: Vec<String>,
     registry_type: String,
     pub repository: String,
     pub container_tags: Option<Vec<String>>,
@@ -107,11 +108,24 @@ async fn main() -> Result<(), anyhow::Error> {
     let upload_metadata_path = merger_data_path.join("upload_metadata.json");
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
-    let destination_registry = rules_minidock_tools::registry::from_maybe_domain_and_name(
-        &pusher_config.registry,
-        &pusher_config.repository,
-    )
-    .await?;
+    let destination_registries_setup: Vec<
+        tokio::task::JoinHandle<Result<Arc<dyn Registry>, anyhow::Error>>,
+    > = pusher_config
+        .registries
+        .iter()
+        .map(|r| {
+            let r = r.clone();
+            let repository = pusher_config.repository.clone();
+            tokio::spawn(async move {
+                rules_minidock_tools::registry::from_maybe_domain_and_name(&r, &repository).await
+            })
+        })
+        .collect();
+
+    let mut destination_registries = vec![];
+    for r in destination_registries_setup {
+        destination_registries.push(r.await??);
+    }
 
     let source_registry = if let Some(source_remote_metadata) =
         upload_metadata.remote_metadata.as_ref()
@@ -138,6 +152,14 @@ async fn main() -> Result<(), anyhow::Error> {
         None
     };
 
+    let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
+    let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
+    let config_sha_printed = format!("sha256:{}", config_sha);
+    let expected_sha = &manifest.config.digest;
+    if expected_sha != &config_sha_printed {
+        bail!("The config we have on disk at {:?}, does not have the same sha as the manifest expects. Got: {}, expected: {}", &config_path, config_sha_printed, expected_sha)
+    }
+
     let mut local_digests: HashMap<String, PathBuf> = HashMap::default();
     for local_data in upload_metadata.layer_configs.iter() {
         let local_layer_path: PathBuf = (&local_data.layer_data).into();
@@ -150,35 +172,58 @@ async fn main() -> Result<(), anyhow::Error> {
         std::fs::create_dir_all(&tmp_cache_path)?;
     }
 
-    let request_state = Arc::new(RequestState {
-        local_digests,
-        destination_registry: Arc::clone(&destination_registry),
-        source_registry,
-        cache_path,
-    });
-
     let mp = Arc::new(MultiProgress::with_draw_target(
         ProgressDrawTarget::stderr_with_hz(12),
     ));
 
-    mp.set_alignment(indicatif::MultiProgressAlignment::Bottom);
+    mp.set_alignment(indicatif::MultiProgressAlignment::Top);
 
-    let pb_main = mp.add(ProgressBar::new(manifest.layers.len() as u64));
-
+    let pb_main = mp.add(ProgressBar::new(
+        (manifest.layers.len() * destination_registries.len()) as u64,
+    ));
     let mut tokio_data = Vec::default();
-    for layer in manifest.layers.iter() {
-        let layer = layer.clone();
-        let request_state = Arc::clone(&request_state);
-        let pb_main = pb_main.clone();
-        let mp = mp.clone();
 
-        tokio_data.push(tokio::spawn(async move {
-            pb_main.tick();
-            let r = rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp)
-                .await;
-            pb_main.inc(1);
-            r
-        }))
+    for destination_registry in destination_registries.iter().cloned() {
+        let request_state = Arc::new(RequestState {
+            local_digests: local_digests.clone(),
+            destination_registry: Arc::clone(&destination_registry),
+            source_registry: source_registry.clone(),
+            cache_path: cache_path.clone(),
+        });
+
+        for layer in manifest.layers.iter() {
+            let layer = layer.clone();
+            let request_state = Arc::clone(&request_state);
+            let pb_main = pb_main.clone();
+            let mp = mp.clone();
+
+            tokio_data.push(tokio::spawn(async move {
+                let r =
+                    rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp)
+                        .await;
+                pb_main.inc(1);
+                r
+            }))
+        }
+
+        if !destination_registry
+            .blob_exists(&config_sha_printed)
+            .await?
+        {
+            let config_path = config_path.clone();
+            let config_sha_printed = config_sha_printed.clone();
+            tokio_data.push(tokio::spawn(async move {
+                destination_registry
+                    .upload_blob(
+                        &config_path,
+                        &config_sha_printed,
+                        config_sha_len.0 as u64,
+                        None,
+                    )
+                    .await?;
+                Ok(ActionsTaken::default())
+            }));
+        }
     }
 
     let mut actions_taken = ActionsTaken::default();
@@ -187,36 +232,14 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     pb_main.finish_and_clear();
-    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nMetadata uploads commencing", actions_taken);
-
-    let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
-
-    let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
-    let config_sha_printed = format!("sha256:{}", config_sha);
-    let expected_sha = &manifest.config.digest;
-
-    if expected_sha != &config_sha_printed {
-        bail!("The config we have on disk at {:?}, does not have the same sha as the manifest expects. Got: {}, expected: {}", &config_path, config_sha_printed, expected_sha)
-    }
-    if !destination_registry
-        .blob_exists(&config_sha_printed)
-        .await?
-    {
-        destination_registry
-            .upload_blob(
-                &config_path,
-                &config_sha_printed,
-                config_sha_len.0 as u64,
-                None,
-            )
-            .await?;
-    }
+    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
 
     // First lets upload the manifest keyed by the digest.
-
-    destination_registry
-        .upload_manifest(&pusher_config.repository, &manifest, &tags)
-        .await?;
+    for destination_registry in destination_registries.iter() {
+        destination_registry
+            .upload_manifest(&pusher_config.repository, &manifest, &tags)
+            .await?;
+    }
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{bail, Error};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -275,7 +275,10 @@ pub async fn ensure_present(
             .destination_registry
             .upload_blob(&expected_path, &blob.digest, blob.size, Some(pb.clone()))
             .await?;
-        pb.finish_with_message(format!("{}", style("✔").green()));
+        pb.set_style(message_style.clone());
+        pb.set_message(format!("{}", style("✔").green()));
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        pb.finish_and_clear();
         Ok(ActionsTaken::uploaded_data_from_source_repository(
             blob, downloaded,
         ))
