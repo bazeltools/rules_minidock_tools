@@ -183,7 +183,7 @@ impl BlobStore for super::HttpRegistry {
         }
 
         if let Some(location_header) = r.headers().get(http::header::LOCATION) {
-            eprintln!(
+            tracing::debug!(
                 "Blob upload complete for digest {}, stored at: {:#?}",
                 digest,
                 location_header.to_str()?

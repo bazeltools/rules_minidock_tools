@@ -4,7 +4,6 @@ use anyhow::Context;
 use clap::Parser;
 
 use indicatif::MultiProgress;
-use indicatif::ProgressBar;
 use indicatif::ProgressDrawTarget;
 use rules_minidock_tools::container_specs::ConfigDelta;
 use rules_minidock_tools::container_specs::Manifest;
@@ -181,9 +180,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     mp.set_alignment(indicatif::MultiProgressAlignment::Top);
 
-    let pb_main = mp.add(ProgressBar::new(
-        (manifest.layers.len() * destination_registries.len()) as u64,
-    ));
     let mut tokio_data = Vec::default();
 
     for destination_registry in destination_registries.iter().cloned() {
@@ -197,15 +193,10 @@ async fn main() -> Result<(), anyhow::Error> {
         for layer in manifest.layers.iter() {
             let layer = layer.clone();
             let request_state = Arc::clone(&request_state);
-            let pb_main = pb_main.clone();
             let mp = mp.clone();
 
             tokio_data.push(tokio::spawn(async move {
-                let r =
-                    rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp)
-                        .await;
-                pb_main.inc(1);
-                r
+                rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp).await
             }))
         }
 
