@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use crate::registry::ContentAndContentType;
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use http::Uri;
 use http::{Response, StatusCode};
 use hyper::body::HttpBody as _;
@@ -11,10 +13,11 @@ use tokio::io::AsyncWriteExt;
 use super::HttpCli;
 
 #[async_recursion::async_recursion]
-pub(super) async fn redirect_uri_fetch<F>(
+async fn inner_redirect_uri_fetch<F>(
     client: &HttpCli,
     configure_request_builder: F,
     uri: &Uri,
+    retries: usize,
 ) -> Result<Response<Body>, Error>
 where
     F: Fn(http::request::Builder) -> http::request::Builder + Send + Sync,
@@ -24,22 +27,56 @@ where
 
     let request = req_builder.body(Body::from(""))?;
 
-    let r: Response<Body> = client.request(request).await?;
+    let r: Response<Body> = match client.request(request).await {
+        Err(e) => {
+            if e.is_connect() && retries < 10 {
+                tokio::time::sleep(Duration::from_millis((retries * 2) as u64)).await;
+                return inner_redirect_uri_fetch(
+                    client,
+                    configure_request_builder,
+                    uri,
+                    retries + 1,
+                )
+                .await;
+            } else {
+                return Err(e.into());
+            }
+        }
+        Ok(r) => r,
+    };
 
     let status = r.status();
     if status.is_redirection() {
         if let Some(location_header) = r.headers().get(http::header::LOCATION) {
             let location_str = location_header.to_str()?;
-            return redirect_uri_fetch(
+            return inner_redirect_uri_fetch(
                 client,
                 configure_request_builder,
                 &location_str.parse::<Uri>()?,
+                retries,
             )
-            .await;
+            .await
+            .with_context(|| {
+                format!(
+                    "Failure when attempting to query, url we were redirected to {}",
+                    location_str
+                )
+            });
         }
     }
 
     Ok(r)
+}
+
+pub(super) async fn redirect_uri_fetch<F>(
+    client: &HttpCli,
+    configure_request_builder: F,
+    uri: &Uri,
+) -> Result<Response<Body>, Error>
+where
+    F: Fn(http::request::Builder) -> http::request::Builder + Send + Sync,
+{
+    inner_redirect_uri_fetch(client, configure_request_builder, uri, 0).await
 }
 
 pub(super) async fn dump_body_to_string(response: &mut Response<Body>) -> Result<String, Error> {

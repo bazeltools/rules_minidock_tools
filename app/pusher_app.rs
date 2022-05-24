@@ -35,7 +35,7 @@ struct Opt {
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub struct PusherConfig {
     pub merger_data: String,
-    pub registries: Vec<String>,
+    pub registry_list: Vec<String>,
     registry_type: String,
     pub repository: String,
     pub container_tags: Option<Vec<String>>,
@@ -109,22 +109,25 @@ async fn main() -> Result<(), anyhow::Error> {
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
     let destination_registries_setup: Vec<
-        tokio::task::JoinHandle<Result<Arc<dyn Registry>, anyhow::Error>>,
+        Result<tokio::task::JoinHandle<Result<Arc<dyn Registry>, anyhow::Error>>, anyhow::Error>,
     > = pusher_config
-        .registries
+        .registry_list
         .iter()
         .map(|r| {
             let r = r.clone();
+            if r.is_empty() {
+                bail!("Passed in an invalid registry, its an empty string.")
+            }
             let repository = pusher_config.repository.clone();
-            tokio::spawn(async move {
+            Ok(tokio::spawn(async move {
                 rules_minidock_tools::registry::from_maybe_domain_and_name(&r, &repository).await
-            })
+            }))
         })
         .collect();
 
     let mut destination_registries = vec![];
     for r in destination_registries_setup {
-        destination_registries.push(r.await??);
+        destination_registries.push(r?.await??);
     }
 
     let source_registry = if let Some(source_remote_metadata) =
@@ -206,24 +209,23 @@ async fn main() -> Result<(), anyhow::Error> {
             }))
         }
 
-        if !destination_registry
-            .blob_exists(&config_sha_printed)
-            .await?
-        {
-            let config_path = config_path.clone();
-            let config_sha_printed = config_sha_printed.clone();
-            tokio_data.push(tokio::spawn(async move {
-                destination_registry
+        let config_sha_printed = config_sha_printed.clone();
+        let config_path = config_path.clone();
+        tokio_data.push(tokio::spawn(async move {
+            match destination_registry.blob_exists(&config_sha_printed).await {
+                Ok(true) => Ok(ActionsTaken::default()),
+                Err(e) => Err(e),
+                Ok(false) => destination_registry
                     .upload_blob(
                         &config_path,
                         &config_sha_printed,
                         config_sha_len.0 as u64,
                         None,
                     )
-                    .await?;
-                Ok(ActionsTaken::default())
-            }));
-        }
+                    .await
+                    .map(|_| ActionsTaken::default()),
+            }
+        }));
     }
 
     let mut actions_taken = ActionsTaken::default();
@@ -231,7 +233,9 @@ async fn main() -> Result<(), anyhow::Error> {
         actions_taken.merge(&join_result.await??);
     }
 
-    pb_main.finish_and_clear();
+    mp.clear()?;
+    mp.set_draw_target(ProgressDrawTarget::hidden());
+    drop(mp);
     println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
 
     // First lets upload the manifest keyed by the digest.

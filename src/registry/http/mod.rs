@@ -6,7 +6,7 @@ use std::time::Duration;
 use crate::container_specs::manifest::Manifest;
 use crate::registry::http::util::{dump_body_to_string, redirect_uri_fetch};
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use http::Uri;
 use http::{Response, StatusCode};
 
@@ -104,6 +104,7 @@ impl HttpRegistry {
 
         let http_client: Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>> =
             Client::builder().build::<_, hyper::Body>(https);
+
         eprintln!("Connecting to registry {:?}", registry_uri);
         let reg = HttpRegistry {
             registry_uri: registry_uri.clone(),
@@ -123,7 +124,12 @@ impl HttpRegistry {
                 "Timed out connecting to registry {:?}, after waiting 4 seconds.",
                 registry_uri
             ),
-            Ok(e) => e?,
+            Ok(e) => e.with_context(|| {
+                format!(
+                    "When trying to query base url of registry: {:?} ; query uri: {:?}",
+                    registry_uri, req_uri
+                )
+            })?,
         };
 
         if resp
@@ -134,6 +140,8 @@ impl HttpRegistry {
             let body = dump_body_to_string(&mut resp).await.unwrap_or_default();
             bail!("Failed to request base url of registry. Registry configuration likely broken: {:#?}, status code: {:?}, body:\n{:?}", registry_uri, resp.status(), body);
         }
+
+        eprintln!("Connected to registry {:?}", registry_uri);
 
         Ok(reg)
     }
