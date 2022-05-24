@@ -1,5 +1,6 @@
 use sha2::Digest;
 use sha2::Sha256;
+use std::io::BufReader;
 use std::io::Read;
 use std::str::FromStr;
 use tokio::io::AsyncReadExt;
@@ -29,11 +30,11 @@ impl Sha256Value {
         tokio::task::spawn_blocking(move || {
             let compressed_f = std::fs::File::open(&path)?;
 
+            let compressed_f = BufReader::new(compressed_f);
             let mut f = GzDecoder::new(compressed_f);
-            let mut buffer = vec![0; 1024 * 3];
+            let mut buffer = vec![0; 1024 * 16];
             let mut hasher = Sha256::new();
 
-            // read up to 10 bytes
             let mut n = 1;
             let mut total_read = 0;
             while n > 0 {
@@ -56,9 +57,10 @@ impl Sha256Value {
     pub async fn from_path(
         path: &std::path::Path,
     ) -> Result<(Sha256Value, DataLen), std::io::Error> {
-        let mut f = tokio::fs::File::open(&path).await?;
+        let f = tokio::fs::File::open(&path).await?;
+        let mut f = tokio::io::BufReader::new(f);
 
-        let mut buffer = vec![0; 1024 * 3];
+        let mut buffer = vec![0; 1024 * 16];
         let mut hasher = Sha256::new();
 
         // read up to 10 bytes

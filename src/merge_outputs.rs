@@ -4,7 +4,7 @@ use crate::{
     PathPair,
 };
 
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::bail;
 
@@ -70,6 +70,57 @@ pub async fn merge(
         }
     }
 
+    struct ShaData {
+        pub compressed: bool,
+        pub path: PathBuf,
+        pub sha: Sha256Value,
+        pub len: DataLen,
+    }
+
+    let mut pass_one_data = Vec::default();
+    for info in merge_config.infos.iter() {
+        if let Some(layer) = &info.data {
+            let pb = rel_as_path(&layer.path);
+            if !pb.exists() {
+                bail!("Layer path likely incorrect, unable to find {:?}", pb)
+            }
+
+            let pb2 = pb.clone();
+            let sp = tokio::spawn(async {
+                let pb2 = pb2;
+                Sha256Value::from_path(&pb2).await.map(|(s, c)| ShaData {
+                    compressed: true,
+                    path: pb2,
+                    sha: s,
+                    len: c,
+                })
+            });
+            pass_one_data.push(sp);
+
+            let pb2 = pb.clone();
+            let sp = tokio::spawn(async {
+                let pb2 = pb2;
+                Sha256Value::from_path_uncompressed(&pb2)
+                    .await
+                    .map(|(s, c)| ShaData {
+                        compressed: false,
+                        path: pb2,
+                        sha: s,
+                        len: c,
+                    })
+            });
+
+            pass_one_data.push(sp);
+        }
+    }
+
+    let mut lut_data: HashMap<(PathBuf, bool), (Sha256Value, DataLen)> = HashMap::default();
+
+    for m in pass_one_data {
+        let s = m.await??;
+        lut_data.insert((s.path, s.compressed), (s.sha, s.len));
+    }
+
     for info in merge_config.infos.iter() {
         if let Some(config) = &info.config {
             cfg.update_with(config);
@@ -79,22 +130,28 @@ pub async fn merge(
             if !pb.exists() {
                 bail!("Layer path likely incorrect, unable to find {:?}", pb)
             }
-            let (compressed_sha_v, compressed_size) = Sha256Value::from_path(&pb).await?;
-            let (inner_sha_v, uncompressed_size) = Sha256Value::from_path_uncompressed(&pb).await?;
+            let (compressed_sha_v, compressed_size) =
+                lut_data.get(&(pb.clone(), true)).ok_or_else(|| {
+                    anyhow::anyhow!("Unable to find data in map. shouldn't be possible")
+                })?;
+            let (inner_sha_v, uncompressed_size) =
+                lut_data.get(&(pb.clone(), false)).ok_or_else(|| {
+                    anyhow::anyhow!("Unable to find data in map. shouldn't be possible")
+                })?;
             let _sha_str_fmt = format!("sha256:{}", inner_sha_v);
-            cfg.add_layer(&inner_sha_v);
+            cfg.add_layer(inner_sha_v);
 
             manifest.add_layer(
-                compressed_sha_v,
-                compressed_size,
+                *compressed_sha_v,
+                *compressed_size,
                 container_specs::blob_reference::BlobReferenceType::LayerGz,
             );
             layer_uploads.layers.push(OutputLayer {
                 content: layer.clone(),
-                sha256: compressed_sha_v,
-                compressed_size,
-                inner_sha_v,
-                uncompressed_size,
+                sha256: *compressed_sha_v,
+                compressed_size: *compressed_size,
+                inner_sha_v: *inner_sha_v,
+                uncompressed_size: *uncompressed_size,
             });
         }
     }
