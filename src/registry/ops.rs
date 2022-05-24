@@ -158,6 +158,15 @@ impl RequestState {
     }
 }
 
+async fn finish_progress_bar_success(mp: Arc<MultiProgress>, pb: ProgressBar) {
+    let message_style = ProgressStyle::with_template("{prefix:80} {msg}").unwrap();
+    pb.set_style(message_style.clone());
+    pb.set_message(format!("{}", style("✔").green()));
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    pb.finish_and_clear();
+    mp.remove(&pb);
+}
+
 pub async fn ensure_present(
     blob: &BlobReference,
     request_state: Arc<RequestState>,
@@ -189,7 +198,7 @@ pub async fn ensure_present(
 
     let destination_registry_name = request_state.destination_registry.registry_name();
     if request_state.destination_present(blob).await? {
-        pb.finish_with_message(format!("{}", style("✔").green()));
+        finish_progress_bar_success(mp, pb).await;
         return Ok(ActionsTaken::already_present(blob));
     }
 
@@ -209,7 +218,8 @@ pub async fn ensure_present(
         }
         pb.set_message("Checking destination presence post copy");
         if request_state.destination_present(blob).await? {
-            pb.finish_with_message(format!("{}", style("✔").green()));
+            finish_progress_bar_success(mp, pb).await;
+
             return Ok(ActionsTaken::copied_from_source_repository(blob));
         }
         pb.set_message("Not found, copy failed.");
@@ -225,7 +235,7 @@ pub async fn ensure_present(
             .destination_registry
             .upload_blob(local_layer_path, &blob.digest, blob.size, Some(pb.clone()))
             .await?;
-        pb.finish_with_message(format!("{}", style("✔").green()));
+        finish_progress_bar_success(mp, pb).await;
         return Ok(ActionsTaken::uploaded_from_local(blob));
     }
 
@@ -275,10 +285,8 @@ pub async fn ensure_present(
             .destination_registry
             .upload_blob(&expected_path, &blob.digest, blob.size, Some(pb.clone()))
             .await?;
-        pb.set_style(message_style.clone());
-        pb.set_message(format!("{}", style("✔").green()));
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        pb.finish_and_clear();
+        finish_progress_bar_success(mp, pb).await;
+
         Ok(ActionsTaken::uploaded_data_from_source_repository(
             blob, downloaded,
         ))
