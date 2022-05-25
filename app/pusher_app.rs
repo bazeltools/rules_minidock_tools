@@ -39,6 +39,8 @@ pub struct PusherConfig {
     pub repository: String,
     pub container_tags: Option<Vec<String>>,
     pub container_tag_file: Option<String>,
+    pub stamp_info_file: String,
+    pub stamp_to_env: bool,
 }
 
 impl PusherConfig {
@@ -95,10 +97,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let merger_data_path = PathBuf::from(&pusher_config.merger_data);
 
     let config_path = merger_data_path.join("config.json");
-    let _config = ConfigDelta::parse_file(&config_path)?;
-    let manifest_path = merger_data_path.join("manifest.json");
-    let manifest_bytes = std::fs::read(&manifest_path)?;
-    let manifest = Manifest::parse(&manifest_bytes)?;
+
+    let manifest = {
+        let manifest_path = merger_data_path.join("manifest.json");
+        let manifest_bytes = std::fs::read(&manifest_path)?;
+        Manifest::parse(&manifest_bytes)?
+    };
 
     let tags = load_tags(&pusher_config)?;
     if tags.is_empty() {
@@ -154,13 +158,33 @@ async fn main() -> Result<(), anyhow::Error> {
         None
     };
 
-    let manifest = manifest.set_specification_type(pusher_config.registry_type()?);
+    let mut manifest = manifest.set_specification_type(pusher_config.registry_type()?);
+
+    let mut config = ConfigDelta::parse_file(&config_path)?;
+    if pusher_config.stamp_to_env {
+        if let Ok(content) = std::fs::read_to_string(&pusher_config.stamp_info_file) {
+            let mut execution_config = std::mem::take(&mut config.config).unwrap_or_default();
+            let mut env = std::mem::take(&mut execution_config.env).unwrap_or_default();
+
+            for ln in content.lines() {
+                if let Some((key, v)) = ln.split_once(" ") {
+                    env.push(format!(
+                        "{}={}",
+                        key.strip_prefix("STABLE_").unwrap_or(key),
+                        v
+                    ));
+                }
+            }
+            execution_config.env = Some(env);
+            config.config = Some(execution_config);
+        }
+    }
+    let tmp_config = tempfile::NamedTempFile::new()?;
+    config.write_file(tmp_config.path())?;
+    let config_path: PathBuf = tmp_config.path().to_path_buf();
     let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
     let config_sha_printed = format!("sha256:{}", config_sha);
-    let expected_sha = &manifest.config.digest;
-    if expected_sha != &config_sha_printed {
-        bail!("The config we have on disk at {:?}, does not have the same sha as the manifest expects. Got: {}, expected: {}", &config_path, config_sha_printed, expected_sha)
-    }
+    manifest.config.digest = config_sha_printed.clone();
 
     let mut local_digests: HashMap<String, PathBuf> = HashMap::default();
     for local_data in upload_metadata.layer_configs.iter() {

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use anyhow::Error;
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone, Default)]
 
 pub struct ExecutionConfig {
     // The username or UID which is a platform-specific structure that allows specific control over which user the process run as. This acts as a default value to use when the value is not specified when creating a container. For Linux based systems, all of the following are valid: user, uid, user:group, uid:gid, uid:group, user:gid. If group/gid is not specified, the default group and supplementary groups of the given user/uid in /etc/passwd from the container are applied.
