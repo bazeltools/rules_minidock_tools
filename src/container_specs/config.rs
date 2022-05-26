@@ -8,22 +8,27 @@ use anyhow::Error;
 
 pub struct ExecutionConfig {
     // The username or UID which is a platform-specific structure that allows specific control over which user the process run as. This acts as a default value to use when the value is not specified when creating a container. For Linux based systems, all of the following are valid: user, uid, user:group, uid:gid, uid:group, user:gid. If group/gid is not specified, the default group and supplementary groups of the given user/uid in /etc/passwd from the container are applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "User")]
     pub user: Option<String>,
 
     // A set of ports to expose from a container running this image. Its keys can be in the format of: port/tcp, port/udp, port with the default protocol being tcp if not specified. These values act as defaults and are merged with any specified when creating a container. NOTE: This JSON structure value is unusual because it is a direct JSON serialization of the Go type map[string]struct{} and is represented in JSON as an object mapping its keys to an empty object.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ExposedPorts")]
     pub exposed_ports: Option<HashMap<String, ()>>,
 
     // Entries are in the format of VARNAME=VARVALUE. These values act as defaults and are merged with any specified when creating a container.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Env")]
     pub env: Option<Vec<String>>,
 
     // A list of arguments to use as the command to execute when the container starts. These values act as defaults and may be replaced by an entrypoint specified when creating a container.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Entrypoint", alias = "entrypoint")]
     pub entrypoint: Option<Vec<String>>,
 
     // Default arguments to the entrypoint of the container. These values act as defaults and may be replaced by any specified when creating a container. If an Entrypoint value is not specified, then the first entry of the Cmd array SHOULD be interpreted as the executable to run.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Cmd")]
     pub cmd: Option<Vec<String>>,
 
@@ -32,30 +37,37 @@ pub struct ExecutionConfig {
     pub volumes: Option<Vec<String>>,
 
     // Sets the current working directory of the entrypoint process in the container. This value acts as a default and may be replaced by a working directory specified when creating a container.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "WorkingDir")]
     pub working_dir: Option<String>,
 
     // The field contains arbitrary metadata for the container. This property MUST use the annotation rules.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Labels")]
     pub labels: Option<HashMap<String, String>>,
 
     // The field contains the system call signal that will be sent to the container to exit. The signal can be a signal name in the format SIGNAME, for instance SIGKILL or SIGRTMIN+3.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "StopSignal")]
     pub stop_signal: Option<String>,
 
     // This property is reserved for use, to maintain compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Memory")]
     pub memory: Option<i64>,
 
     // This property is reserved for use, to maintain compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "MemorySwap")]
     pub memory_swap: Option<i64>,
 
     // This property is reserved for use, to maintain compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "CpuShares")]
     pub cpu_shares: Option<i64>,
 
     // This property is reserved for use, to maintain compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Healthcheck")]
     pub healthcheck: Option<HashMap<String, String>>,
 }
@@ -137,18 +149,23 @@ impl ExecutionConfig {
 
 pub struct HistoryItem {
     // A combined date and time at which the layer was created, formatted as defined by RFC 3339, section 5.6.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created: Option<String>,
 
     // The author of the build point.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
 
     // The command which created the layer.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
 
     // A custom message set when creating the layer.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
 
     // This field is used to mark if the history item created a filesystem diff. It is set to true if this history item doesn't correspond to an actual layer in the rootfs section (for example, Dockerfile's ENV command results in no change to the filesystem).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub empty_layer: Option<bool>,
 }
 
