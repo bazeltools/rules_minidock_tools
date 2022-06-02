@@ -44,7 +44,7 @@ impl super::RegistryCore for HttpRegistry {
         container_name: &str,
         manifest: &Manifest,
         tag: &str,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<String>, Error> {
         let manifest: Manifest = {
             let mut manifest = manifest.clone();
             manifest.tag = Some(tag.to_string());
@@ -55,7 +55,7 @@ impl super::RegistryCore for HttpRegistry {
 
         if let Ok(content_and_type) = self.fetch_manifest_as_string(tag).await {
             if manifest_bytes == content_and_type.content.as_bytes() {
-                return Ok(());
+                return Ok(None);
             }
         }
 
@@ -74,14 +74,10 @@ impl super::RegistryCore for HttpRegistry {
 
         if let Some(location_header) = r.headers().get(http::header::LOCATION) {
             let location_str = location_header.to_str()?;
-            eprintln!(
-                "Uploaded manifest to repository {} @ {:#?}, for tag: {} @ {}",
-                self.name, post_target_uri, tag, location_str
-            );
+            Ok(Some(location_str.to_string()))
         } else {
             bail!("We got a positive response code: {:#?}, however we are missing the location header as is required in the spec", r.status())
         }
-        Ok(())
     }
 }
 

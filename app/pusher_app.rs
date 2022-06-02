@@ -251,24 +251,24 @@ async fn main() -> Result<(), anyhow::Error> {
         actions_taken.merge(&join_result.await??);
     }
 
-
     println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
 
     let mut tokio_data = Vec::default();
-
 
     // First lets upload the manifest keyed by the digest.
     let manifest = Arc::new(manifest);
     for destination_registry in destination_registries.iter() {
         for t in tags.iter() {
-
             let message_style = ProgressStyle::with_template("{msg}").unwrap();
             let message_pb = ProgressBar::new(1);
             message_pb.set_style(message_style.clone());
             let pb = mp.add(message_pb);
 
-            pb.set_message(format!("Uploading tag {} to {}", t, destination_registry.registry_name()));
-
+            pb.set_message(format!(
+                "Uploading tag {} to {}",
+                t,
+                destination_registry.registry_name()
+            ));
 
             let t = t.clone();
             let destination_registry = destination_registry.clone();
@@ -283,17 +283,30 @@ async fn main() -> Result<(), anyhow::Error> {
                 } else {
                     pb.set_message(format!("{}", console::style("x").red()));
                 }
-                r
+                r.map(|s| (s, t))
             }));
         }
     }
 
+    let mut uploaded_locations = Vec::default();
     for join_result in tokio_data {
-        join_result.await??;
+        let uploaded_location = join_result.await??;
+        uploaded_locations.push(uploaded_location);
     }
 
     mp.clear()?;
     mp.set_draw_target(ProgressDrawTarget::hidden());
     drop(mp);
+
+    for (uploaded_location, tag) in uploaded_locations {
+        if let Some(loc) = uploaded_location {
+            eprintln!("Uploaded {} to: {}", tag, loc);
+        } else {
+            eprintln!(
+                "Skipped an upload, manifest already present for tag {}",
+                tag
+            );
+        }
+    }
     Ok(())
 }

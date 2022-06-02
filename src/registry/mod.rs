@@ -22,7 +22,7 @@ pub trait RegistryCore {
         container_name: &str,
         manifest: &crate::container_specs::manifest::Manifest,
         tag: &str,
-    ) -> Result<(), Error>;
+    ) -> Result<Option<String>, Error>;
 }
 
 #[derive(Debug)]
