@@ -12,10 +12,13 @@ struct Opt {
     relative_search_path: Option<PathBuf>,
 
     #[clap(long, parse(from_os_str))]
-    directory_output: PathBuf,
+    config_path: PathBuf,
 
     #[clap(long, parse(from_os_str))]
-    directory_output_short_path: PathBuf,
+    manifest_path: PathBuf,
+
+    #[clap(long, parse(from_os_str))]
+    upload_metadata_path: PathBuf,
 }
 
 #[tokio::main]
@@ -30,14 +33,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let (merge_config, mut manifest, layers) =
         rules_minidock_tools::merge_outputs::merge(&pusher_config, &relative_search_path).await?;
 
-    let config_path = opt.directory_output.join("config.json");
+    let config_path = opt.config_path;
     merge_config.write_file(&config_path)?;
 
     let (config_sha, config_len) = Sha256Value::from_path(&config_path).await?;
 
     manifest.update_config(config_sha, config_len);
 
-    let manifest_path = opt.directory_output.join("manifest.json");
+    let manifest_path = opt.manifest_path;
     manifest.write_file(&manifest_path)?;
 
     let mut layer_configs = Vec::default();
@@ -58,7 +61,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     use std::fs::File;
     use std::io::BufWriter;
-    let upload_metadata_path = opt.directory_output.join("upload_metadata.json");
+    let upload_metadata_path = opt.upload_metadata_path;
 
     let file = File::create(&upload_metadata_path)?;
     let writer = BufWriter::new(file);

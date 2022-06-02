@@ -33,7 +33,10 @@ struct Opt {
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub struct PusherConfig {
-    pub merger_data: String,
+    pub manifest_path: String,
+    pub config_path: String,
+    pub upload_metadata_path: String,
+
     pub registry_list: Vec<String>,
     registry_type: String,
     pub repository: String,
@@ -94,12 +97,10 @@ async fn main() -> Result<(), anyhow::Error> {
             )
         })?;
 
-    let merger_data_path = PathBuf::from(&pusher_config.merger_data);
-
-    let config_path = merger_data_path.join("config.json");
+    let config_path = PathBuf::from(&pusher_config.config_path);
 
     let manifest = {
-        let manifest_path = merger_data_path.join("manifest.json");
+        let manifest_path = PathBuf::from(&pusher_config.manifest_path);
         let manifest_bytes = std::fs::read(&manifest_path)?;
         Manifest::parse(&manifest_bytes)?
     };
@@ -108,7 +109,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if tags.is_empty() {
         bail!("No tags specified, unable to know where to push a manifest. Try 'latest' ? ")
     }
-    let upload_metadata_path = merger_data_path.join("upload_metadata.json");
+    let upload_metadata_path = PathBuf::from(&pusher_config.upload_metadata_path);
     let upload_metadata = rules_minidock_tools::UploadMetadata::parse_file(&upload_metadata_path)?;
 
     let destination_registries_setup: Vec<
