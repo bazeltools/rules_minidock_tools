@@ -15,7 +15,7 @@ pub struct ExecutionConfig {
     // A set of ports to expose from a container running this image. Its keys can be in the format of: port/tcp, port/udp, port with the default protocol being tcp if not specified. These values act as defaults and are merged with any specified when creating a container. NOTE: This JSON structure value is unusual because it is a direct JSON serialization of the Go type map[string]struct{} and is represented in JSON as an object mapping its keys to an empty object.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ExposedPorts")]
-    pub exposed_ports: Option<HashMap<String, ()>>,
+    pub exposed_ports: Option<HashMap<String, HashMap<String, String>>>,
 
     // Entries are in the format of VARNAME=VARVALUE. These values act as defaults and are merged with any specified when creating a container.
     #[serde(skip_serializing_if = "Option::is_none")]
