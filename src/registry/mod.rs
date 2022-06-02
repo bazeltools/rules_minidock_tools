@@ -21,7 +21,7 @@ pub trait RegistryCore {
         &self,
         container_name: &str,
         manifest: &crate::container_specs::manifest::Manifest,
-        tags: &Vec<String>,
+        tag: &str,
     ) -> Result<(), Error>;
 }
 

@@ -4,7 +4,9 @@ use anyhow::Context;
 use clap::Parser;
 
 use indicatif::MultiProgress;
+use indicatif::ProgressBar;
 use indicatif::ProgressDrawTarget;
+use indicatif::ProgressStyle;
 use rules_minidock_tools::container_specs::ConfigDelta;
 use rules_minidock_tools::container_specs::Manifest;
 use rules_minidock_tools::container_specs::SpecificationType;
@@ -249,17 +251,49 @@ async fn main() -> Result<(), anyhow::Error> {
         actions_taken.merge(&join_result.await??);
     }
 
+
+    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
+
+    let mut tokio_data = Vec::default();
+
+
+    // First lets upload the manifest keyed by the digest.
+    let manifest = Arc::new(manifest);
+    for destination_registry in destination_registries.iter() {
+        for t in tags.iter() {
+
+            let message_style = ProgressStyle::with_template("{msg}").unwrap();
+            let message_pb = ProgressBar::new(1);
+            message_pb.set_style(message_style.clone());
+            let pb = mp.add(message_pb);
+
+            pb.set_message(format!("Uploading tag {} to {}", t, destination_registry.registry_name()));
+
+
+            let t = t.clone();
+            let destination_registry = destination_registry.clone();
+            let repository = pusher_config.repository.clone();
+            let manifest = Arc::clone(&manifest);
+            tokio_data.push(tokio::spawn(async move {
+                let r = destination_registry
+                    .upload_manifest(&repository, &manifest, &t)
+                    .await;
+                if r.is_ok() {
+                    pb.set_message(format!("{}", console::style("✔").green()));
+                } else {
+                    pb.set_message(format!("{}", console::style("x").red()));
+                }
+                r
+            }));
+        }
+    }
+
+    for join_result in tokio_data {
+        join_result.await??;
+    }
+
     mp.clear()?;
     mp.set_draw_target(ProgressDrawTarget::hidden());
     drop(mp);
-    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
-
-    // First lets upload the manifest keyed by the digest.
-    for destination_registry in destination_registries.iter() {
-        destination_registry
-            .upload_manifest(&pusher_config.repository, &manifest, &tags)
-            .await?;
-    }
-
     Ok(())
 }

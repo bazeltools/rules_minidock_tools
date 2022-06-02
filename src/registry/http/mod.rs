@@ -43,35 +43,43 @@ impl super::RegistryCore for HttpRegistry {
         &self,
         container_name: &str,
         manifest: &Manifest,
-        tags: &Vec<String>,
+        tag: &str,
     ) -> Result<(), Error> {
-        for t in tags.iter() {
-            let post_target_uri = self.repository_uri_from_path(format!("/manifests/{}", t))?;
-            let req_builder = http::request::Builder::default()
-                .method(http::Method::PUT)
-                .uri(post_target_uri.clone())
-                .header("Content-Type", manifest.media_type());
-
-            let mut manifest: Manifest = manifest.clone();
-            manifest.tag = Some(t.clone());
+        let manifest: Manifest = {
+            let mut manifest = manifest.clone();
+            manifest.tag = Some(tag.to_string());
             manifest.name = Some(container_name.to_string());
+            manifest
+        };
+        let manifest_bytes = manifest.to_bytes()?;
 
-            let request = req_builder.body(Body::from(manifest.to_bytes()?))?;
-            let mut r: Response<Body> = self.http_client.request(request).await?;
-
-            if r.status() != StatusCode::CREATED {
-                bail!("Expected to get status code CREATED, but got {:#?}, hitting url: {:#?},\nUploading {:#?}\nResponse:{}", r.status(), post_target_uri, manifest, dump_body_to_string(&mut r).await? )
+        if let Ok(content_and_type) = self.fetch_manifest_as_string(tag).await {
+            if manifest_bytes == content_and_type.content.as_bytes() {
+                return Ok(());
             }
+        }
 
-            if let Some(location_header) = r.headers().get(http::header::LOCATION) {
-                let location_str = location_header.to_str()?;
-                eprintln!(
-                    "Uploaded manifest to repository {} @ {:#?}, for tag: {} @ {}",
-                    self.name, post_target_uri, t, location_str
-                );
-            } else {
-                bail!("We got a positive response code: {:#?}, however we are missing the location header as is required in the spec", r.status())
-            }
+        let post_target_uri = self.repository_uri_from_path(format!("/manifests/{}", tag))?;
+        let req_builder = http::request::Builder::default()
+            .method(http::Method::PUT)
+            .uri(post_target_uri.clone())
+            .header("Content-Type", manifest.media_type());
+
+        let request = req_builder.body(Body::from(manifest_bytes))?;
+        let mut r: Response<Body> = self.http_client.request(request).await?;
+
+        if r.status() != StatusCode::CREATED {
+            bail!("Expected to get status code CREATED, but got {:#?}, hitting url: {:#?},\nUploading {:#?}\nResponse:{}", r.status(), post_target_uri, manifest, dump_body_to_string(&mut r).await? )
+        }
+
+        if let Some(location_header) = r.headers().get(http::header::LOCATION) {
+            let location_str = location_header.to_str()?;
+            eprintln!(
+                "Uploaded manifest to repository {} @ {:#?}, for tag: {} @ {}",
+                self.name, post_target_uri, tag, location_str
+            );
+        } else {
+            bail!("We got a positive response code: {:#?}, however we are missing the location header as is required in the spec", r.status())
         }
         Ok(())
     }
