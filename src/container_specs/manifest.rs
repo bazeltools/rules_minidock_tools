@@ -9,7 +9,6 @@ use anyhow::Error;
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct Manifest {
     pub schema_version: u16,
-    pub tag: Option<String>,
     pub name: Option<String>,
     pub specification_type: SpecificationType,
     pub config: BlobReference,

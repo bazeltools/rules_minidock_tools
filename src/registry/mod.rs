@@ -19,7 +19,6 @@ pub trait RegistryCore {
 
     async fn upload_manifest(
         &self,
-        container_name: &str,
         manifest: &crate::container_specs::manifest::Manifest,
         tag: &str,
     ) -> Result<Option<String>, Error>;

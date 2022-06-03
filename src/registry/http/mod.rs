@@ -41,16 +41,9 @@ impl super::RegistryCore for HttpRegistry {
 
     async fn upload_manifest(
         &self,
-        container_name: &str,
         manifest: &Manifest,
         tag: &str,
     ) -> Result<Option<String>, Error> {
-        let manifest: Manifest = {
-            let mut manifest = manifest.clone();
-            manifest.tag = Some(tag.to_string());
-            manifest.name = Some(container_name.to_string());
-            manifest
-        };
         let manifest_bytes = manifest.to_bytes()?;
 
         if let Ok(content_and_type) = self.fetch_manifest_as_string(tag).await {

@@ -91,18 +91,26 @@ impl<'de> Deserialize<'de> for Manifest {
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
+        #[derive(Deserialize, Debug)]
         struct RawVersion {
             #[serde(rename = "schemaVersion")]
             pub schema_version: u16,
             #[serde(rename = "mediaType")]
             pub media_type: String,
-            pub tag: Option<String>,
             pub name: Option<String>,
             pub config: BlobReference,
             pub layers: Vec<BlobReference>,
         }
+
         let r = RawVersion::deserialize(deserializer)?;
+
+        if r.schema_version != 2 {
+            return Err(D::Error::custom(format!(
+                "Unable to handle schema version: {}, manifest: {:#?}",
+                r.schema_version, r
+            )));
+        }
+
         let specification_type = match r.media_type.as_str() {
             "application/vnd.oci.image.config.v1+json" => SpecificationType::Oci,
             "application/vnd.docker.distribution.manifest.v2+json" => SpecificationType::Docker,
@@ -114,7 +122,6 @@ impl<'de> Deserialize<'de> for Manifest {
             specification_type,
             config: r.config,
             layers: r.layers,
-            tag: r.tag,
             name: r.name,
         })
     }
@@ -133,7 +140,6 @@ impl Serialize for Manifest {
         state.serialize_field("config", &self.config)?;
         state.serialize_field("layers", &self.layers)?;
         state.serialize_field("name", &self.name)?;
-        state.serialize_field("tag", &self.tag)?;
 
         state.end()
     }

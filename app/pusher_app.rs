@@ -272,12 +272,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
             let t = t.clone();
             let destination_registry = destination_registry.clone();
-            let repository = pusher_config.repository.clone();
             let manifest = Arc::clone(&manifest);
             tokio_data.push(tokio::spawn(async move {
-                let r = destination_registry
-                    .upload_manifest(&repository, &manifest, &t)
-                    .await;
+                let r = destination_registry.upload_manifest(&manifest, &t).await;
                 if r.is_ok() {
                     pb.set_message(format!("{}", console::style("✔").green()));
                 } else {
