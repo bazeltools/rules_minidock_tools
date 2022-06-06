@@ -31,6 +31,10 @@ struct Opt {
 
     #[clap(long)]
     verbose: bool,
+
+    /// Do not upload the manifests, meaning just blobs that don't effect tags/usage are synchronized.
+    #[clap(long)]
+    skip_manifest_upload: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
@@ -251,7 +255,20 @@ async fn main() -> Result<(), anyhow::Error> {
         actions_taken.merge(&join_result.await??);
     }
 
-    println!("\n\nAll referred to layers have been ensured present, actions taken:\n{}\nManifest uploads commencing", actions_taken);
+    println!(
+        "\n\nAll referred to layers have been ensured present, actions taken:{}\n",
+        actions_taken
+    );
+    if opt.skip_manifest_upload {
+        mp.clear()?;
+        mp.set_draw_target(ProgressDrawTarget::hidden());
+        drop(mp);
+
+        println!("Asked to skip manifest uploads, exiting.");
+        return Ok(());
+    }
+
+    println!("Manifest uploads commencing");
 
     let mut tokio_data = Vec::default();
 
