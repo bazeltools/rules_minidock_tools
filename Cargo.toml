@@ -29,7 +29,7 @@ bytes = "1.1.0"
 clap = { version = "3.1.18", features = ["derive", "env"] }
 console = "0.15.0"
 flate2 = "1.0.23"
-http = "0.2.7"
+http = "0.2.8"
 hyper = { version = "0.14.18", features = ["full"] }
 hyper-rustls = "0.23.0"
 indicatif = { git = "https://github.com/console-rs/indicatif.git", rev = "2ca9d019fbb4b0aed11bfad984daef064998f5ef" }
