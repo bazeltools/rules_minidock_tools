@@ -39,7 +39,7 @@ serde_json = { version = "1.0.81", features = ["alloc"] }
 sha2 = "0.10.2"
 tempfile = "3.3.0"
 thiserror = "1.0.31"
-tokio = { version = "1.18.2", features = ["full"] }
+tokio = { version = "1.20.1", features = ["full"] }
 tokio-stream = "0.1.8"
 tokio-util = { version = "0.7.2", features = ["io"] }
 tracing = "0.1.34"
