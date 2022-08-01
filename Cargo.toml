@@ -21,28 +21,28 @@ name = "merge-app"
 path = "app/merge_app.rs"
 
 [dependencies]
-anyhow = "1.0.57"
+anyhow = "1.0.59"
 async-recursion = "1.0.0"
 async-stream = "0.3.3"
-async-trait = "0.1.53"
-bytes = "1.1.0"
-clap = { version = "3.1.18", features = ["derive", "env"] }
-console = "0.15.0"
-flate2 = "1.0.23"
-http = "0.2.7"
-hyper = { version = "0.14.18", features = ["full"] }
+async-trait = "0.1.57"
+bytes = "1.2.1"
+clap = { version = "3.2.16", features = ["derive", "env"] }
+console = "0.15.1"
+flate2 = "1.0.24"
+http = "0.2.8"
+hyper = { version = "0.14.20", features = ["full"] }
 hyper-rustls = "0.23.0"
 indicatif = { git = "https://github.com/console-rs/indicatif.git", rev = "2ca9d019fbb4b0aed11bfad984daef064998f5ef" }
-rustls = "0.20.5"
-serde = { version = "1.0.140", features = ["derive", "alloc"] }
+rustls = "0.20.6"
+serde = { version = "1.0.141", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.82", features = ["alloc"] }
 sha2 = "0.10.2"
 tempfile = "3.3.0"
 thiserror = "1.0.31"
-tokio = { version = "1.18.2", features = ["full"] }
-tokio-stream = "0.1.8"
-tokio-util = { version = "0.7.2", features = ["io"] }
-tracing = "0.1.34"
+tokio = { version = "1.20.1", features = ["full"] }
+tokio-stream = "0.1.9"
+tokio-util = { version = "0.7.3", features = ["io"] }
+tracing = "0.1.36"
 
 
 
