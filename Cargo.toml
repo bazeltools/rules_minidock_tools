@@ -41,7 +41,7 @@ tempfile = "3.3.0"
 thiserror = "1.0.32"
 tokio = { version = "1.20.1", features = ["full"] }
 tokio-stream = "0.1.9"
-tokio-util = { version = "0.7.3", features = ["io"] }
+tokio-util = { version = "0.7.4", features = ["io"] }
 tracing = "0.1.36"
 
 
