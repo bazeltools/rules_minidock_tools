@@ -23,10 +23,10 @@ use std::sync::Arc;
 #[derive(Parser, Debug)]
 #[clap(name = "pusher app")]
 struct Opt {
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     pusher_config: PathBuf,
 
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     cache_path: PathBuf,
 
     #[clap(long)]

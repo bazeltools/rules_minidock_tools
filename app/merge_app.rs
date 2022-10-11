@@ -5,19 +5,19 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[clap(name = "merge app")]
 struct Opt {
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     merger_config_path: PathBuf,
 
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     relative_search_path: Option<PathBuf>,
 
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     config_path: PathBuf,
 
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     manifest_path: PathBuf,
 
-    #[clap(long, parse(from_os_str))]
+    #[clap(long)]
     upload_metadata_path: PathBuf,
 }
 
