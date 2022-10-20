@@ -1,5 +1,6 @@
 use clap::Parser;
 use rules_minidock_tools::{hash::sha256_value::Sha256Value, LayerConfig, UploadMetadata};
+use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -16,6 +17,9 @@ struct Opt {
 
     #[clap(long)]
     manifest_path: PathBuf,
+
+    #[clap(long)]
+    manifest_sha256_path: PathBuf,
 
     #[clap(long)]
     upload_metadata_path: PathBuf,
@@ -42,6 +46,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let manifest_path = opt.manifest_path;
     manifest.write_file(&manifest_path)?;
+
+    let (manifest_sha256, _) = Sha256Value::from_path(&manifest_path).await?;
+
+    let file = File::create(&opt.manifest_sha256_path)?;
+    let mut writer = BufWriter::new(file);
+    write!(writer, "{}", manifest_sha256)?;
+    drop(writer);
 
     let mut layer_configs = Vec::default();
 
