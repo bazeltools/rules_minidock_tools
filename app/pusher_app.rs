@@ -212,7 +212,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     mp.set_alignment(indicatif::MultiProgressAlignment::Top);
 
-    let concurrent_io_operations: &'static Semaphore = Box::leak(Box::new(Semaphore::new(24)));
+    let concurrent_io_operations: &'static Semaphore = Box::leak(Box::new(Semaphore::new(32)));
 
     let mut tokio_data = Vec::default();
 

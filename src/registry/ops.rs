@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Error, Context};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tokio::sync::Semaphore;
 
@@ -250,6 +250,7 @@ pub async fn ensure_present(
 
     if let Some(source_registry) = request_state.with_source_present(blob).await? {
         let tmp_cache_path = request_state.cache_path.join("tmp");
+        std::fs::create_dir_all(&tmp_cache_path)?;
         let expected_path = request_state
             .cache_path
             .join(blob.digest.strip_prefix("sha256:").unwrap_or(&blob.digest));
@@ -275,14 +276,14 @@ pub async fn ensure_present(
                     blob.size,
                     Some(pb.clone()),
                 )
-                .await?;
+                .await.with_context(|| format!("Issuing download blob {:?}, to store at {:?}", &blob.digest, local_storage.path()))?;
             drop(lock);
             std::fs::rename(
                 local_storage.path(),
                 request_state
                     .cache_path
                     .join(blob.digest.strip_prefix("sha256:").unwrap_or(&blob.digest)),
-            )?;
+            ).with_context(|| format!("Downloaded a remote blob that wasn't on local {:?}, and trying to rename from temp to final location", &blob.digest))?;
 
             downloaded = true;
         }
