@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 #[derive(Parser, Debug)]
 #[clap(name = "pusher app")]
@@ -211,6 +212,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     mp.set_alignment(indicatif::MultiProgressAlignment::Top);
 
+    let concurrent_io_operations: &'static Semaphore = Box::leak(Box::new(Semaphore::new(24)));
+
     let mut tokio_data = Vec::default();
 
     for destination_registry in destination_registries.iter().cloned() {
@@ -227,7 +230,13 @@ async fn main() -> Result<(), anyhow::Error> {
             let mp = mp.clone();
 
             tokio_data.push(tokio::spawn(async move {
-                rules_minidock_tools::registry::ops::ensure_present(&layer, request_state, mp).await
+                rules_minidock_tools::registry::ops::ensure_present(
+                    &layer,
+                    request_state,
+                    mp,
+                    concurrent_io_operations,
+                )
+                .await
             }))
         }
 

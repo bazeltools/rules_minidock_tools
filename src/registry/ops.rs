@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{bail, Error};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use tokio::sync::Semaphore;
 
 use crate::container_specs::blob_reference::BlobReference;
 
@@ -171,6 +172,7 @@ pub async fn ensure_present(
     blob: &BlobReference,
     request_state: Arc<RequestState>,
     mp: Arc<MultiProgress>,
+    concurrent_io_operations: &'static Semaphore,
 ) -> Result<ActionsTaken, Error> {
     let prefix_str = if let Some(local_layer_path) = request_state.local_digests.get(&blob.digest) {
         let p = local_layer_path.to_string_lossy();
@@ -206,6 +208,7 @@ pub async fn ensure_present(
     if let Some(source_registry) = request_state.with_source_present(blob).await? {
         let source_registry_name = source_registry.registry_name();
         pb.set_message("Try copy from source repository");
+        let lock = concurrent_io_operations.acquire().await?;
         if let Err(e) = request_state
             .destination_registry
             .try_copy_from(&source_registry_name, &blob.digest)
@@ -216,6 +219,7 @@ pub async fn ensure_present(
                 &blob.digest, &source_registry_name, &destination_registry_name, e
             );
         }
+        drop(lock);
         pb.set_message("Checking destination presence post copy");
         if request_state.destination_present(blob).await? {
             finish_progress_bar_success(mp, pb).await;
@@ -231,10 +235,12 @@ pub async fn ensure_present(
         pb.set_style(io_style.clone());
         pb.set_length(blob.size / BYTES_IN_MB);
         pb.set_position(0);
+        let lock = concurrent_io_operations.acquire().await?;
         request_state
             .destination_registry
             .upload_blob(local_layer_path, &blob.digest, blob.size, Some(pb.clone()))
             .await?;
+        drop(lock);
         finish_progress_bar_success(mp, pb).await;
         return Ok(ActionsTaken::uploaded_from_local(blob));
     }
@@ -261,6 +267,7 @@ pub async fn ensure_present(
             pb.set_style(io_style.clone());
             pb.set_length(blob.size / BYTES_IN_MB);
             pb.set_position(0);
+            let lock = concurrent_io_operations.acquire().await?;
             source_registry
                 .download_blob(
                     local_storage.path(),
@@ -269,22 +276,26 @@ pub async fn ensure_present(
                     Some(pb.clone()),
                 )
                 .await?;
+            drop(lock);
             std::fs::rename(
                 local_storage.path(),
                 request_state
                     .cache_path
                     .join(blob.digest.strip_prefix("sha256:").unwrap_or(&blob.digest)),
             )?;
+
             downloaded = true;
         }
         pb.set_message("Uploading cached data");
         pb.set_style(io_style.clone());
         pb.set_length(blob.size / BYTES_IN_MB);
         pb.set_position(0);
+        let lock = concurrent_io_operations.acquire().await?;
         request_state
             .destination_registry
             .upload_blob(&expected_path, &blob.digest, blob.size, Some(pb.clone()))
             .await?;
+        drop(lock);
         finish_progress_bar_success(mp, pb).await;
 
         Ok(ActionsTaken::uploaded_data_from_source_repository(
