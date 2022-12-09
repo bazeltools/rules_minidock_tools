@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{bail, Error, Context};
+use anyhow::{bail, Context, Error};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use tokio::sync::Semaphore;
 
@@ -276,7 +276,14 @@ pub async fn ensure_present(
                     blob.size,
                     Some(pb.clone()),
                 )
-                .await.with_context(|| format!("Issuing download blob {:?}, to store at {:?}", &blob.digest, local_storage.path()))?;
+                .await
+                .with_context(|| {
+                    format!(
+                        "Issuing download blob {:?}, to store at {:?}",
+                        &blob.digest,
+                        local_storage.path()
+                    )
+                })?;
             drop(lock);
             std::fs::rename(
                 local_storage.path(),

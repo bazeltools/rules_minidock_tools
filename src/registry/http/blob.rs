@@ -69,7 +69,14 @@ impl BlobStore for super::HttpRegistry {
             )
         }
 
-        let mut tokio_output = tokio::fs::File::create(&target_file).await.unwrap();
+        let mut tokio_output = tokio::fs::File::create(&target_file)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to open file to write to {:?} for download",
+                    target_file
+                )
+            })?;
         let body = response.body_mut();
         let mut total_bytes = 0;
         let mut hasher = sha2::Sha256::new();
