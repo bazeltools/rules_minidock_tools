@@ -152,10 +152,7 @@ impl BlobStore for super::HttpRegistry {
         let total_uploaded_bytes = Arc::new(Mutex::new(0));
         let stream_byte_ref = Arc::clone(&total_uploaded_bytes);
 
-        let stream: async_stream::AsyncStream<
-            Result<bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>,
-            _,
-        > = async_stream::try_stream! {
+        let stream = async_stream::try_stream! {
 
             while let Some(chunk) = file_reader_stream.next().await {
                 let chunk = chunk?;
@@ -169,7 +166,10 @@ impl BlobStore for super::HttpRegistry {
             }
         };
 
-        let body = hyper::Body::wrap_stream(stream);
+        let body =
+            hyper::Body::wrap_stream::<_, bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>(
+                stream,
+            );
 
         let req_builder = http::request::Builder::default()
             .method(http::Method::PUT)
