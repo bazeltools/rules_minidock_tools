@@ -38,7 +38,7 @@ serde = { version = "1.0.152", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.94", features = ["alloc"] }
 sha2 = "0.10.6"
 tempfile = "3.4.0"
-thiserror = "1.0.38"
+thiserror = "1.0.39"
 tokio = { version = "1.26.0", features = ["full"] }
 tokio-stream = "0.1.12"
 tokio-util = { version = "0.7.7", features = ["io"] }
