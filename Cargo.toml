@@ -38,7 +38,7 @@ rustls = "0.20.8"
 serde = { version = "1.0.160", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.96", features = ["alloc"] }
 sha2 = "0.10.6"
-tempfile = "3.4.0"
+tempfile = "3.5.0"
 thiserror = "1.0.40"
 tokio = { version = "1.27.0", features = ["full"] }
 tokio-stream = "0.1.14"
@@ -52,4 +52,4 @@ name = "rules_minidock_tools"
 path = "src/lib.rs"
 
 [dev-dependencies]
-tempfile = "3.4.0"
+tempfile = "3.5.0"
