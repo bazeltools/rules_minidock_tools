@@ -28,7 +28,7 @@ async-trait = "0.1.68"
 bytes = "1.4.0"
 clap = { version = "4.2.5", features = ["derive", "env"] }
 console = "0.15.5"
-flate2 = "1.0.25"
+flate2 = "1.0.26"
 futures-core = "0.3.28"
 http = "0.2.9"
 hyper = { version = "0.14.26", features = ["full"] }
