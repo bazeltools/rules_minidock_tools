@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::BTreeMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ pub struct ExecutionConfig {
     // A set of ports to expose from a container running this image. Its keys can be in the format of: port/tcp, port/udp, port with the default protocol being tcp if not specified. These values act as defaults and are merged with any specified when creating a container. NOTE: This JSON structure value is unusual because it is a direct JSON serialization of the Go type map[string]struct{} and is represented in JSON as an object mapping its keys to an empty object.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "ExposedPorts")]
-    pub exposed_ports: Option<HashMap<String, HashMap<String, String>>>,
+    pub exposed_ports: Option<BTreeMap<String, BTreeMap<String, String>>>,
 
     // Entries are in the format of VARNAME=VARVALUE. These values act as defaults and are merged with any specified when creating a container.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +44,7 @@ pub struct ExecutionConfig {
     // The field contains arbitrary metadata for the container. This property MUST use the annotation rules.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Labels")]
-    pub labels: Option<HashMap<String, String>>,
+    pub labels: Option<BTreeMap<String, String>>,
 
     // The field contains the system call signal that will be sent to the container to exit. The signal can be a signal name in the format SIGNAME, for instance SIGKILL or SIGRTMIN+3.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,7 +69,7 @@ pub struct ExecutionConfig {
     // This property is reserved for use, to maintain compatibility.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "Healthcheck")]
-    pub healthcheck: Option<HashMap<String, String>>,
+    pub healthcheck: Option<BTreeMap<String, String>>,
 }
 
 impl ExecutionConfig {
@@ -372,5 +372,39 @@ impl ConfigDelta {
         } else {
             unreachable!()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::anyhow;
+
+    const SAMPLE: &str = r#"{
+        "config": {
+            "Labels": {
+                "a": "a1",
+                "b": "b1",
+                "c": "c1",
+                "d": "d1",
+                "e": "e1"
+            }
+        }
+    }"#;
+
+    #[tokio::test]
+    async fn test_json() -> Result<(), Error> {
+        fn parse_config(s: impl AsRef<str>) -> Result<ExecutionConfig, Error> {
+            let config_delta = ConfigDelta::parse_str(s)?;
+            let config = config_delta.config.ok_or(anyhow!("none"))?;
+            Ok(config)
+        }
+
+        let config0 = parse_config(SAMPLE)?;
+        let json0 = serde_json::to_string(&config0)?;
+        let config1 = parse_config(SAMPLE)?;
+        let json1 = serde_json::to_string(&config1)?;
+        assert_eq!(json0, json1);
+        Ok(())
     }
 }
