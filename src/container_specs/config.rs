@@ -374,3 +374,37 @@ impl ConfigDelta {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+    use super::*;
+
+    const SAMPLE: &str = r#"{
+        "config": {
+            "Labels": {
+                "a": "a1",
+                "b": "b1",
+                "c": "c1",
+                "d": "d1",
+                "e": "e1"
+            }
+        }
+    }"#;
+
+    #[tokio::test]
+    async fn test_json() -> Result<(), Error> {
+        fn parse_config(s: impl AsRef<str>) -> Result<ExecutionConfig, Error> {
+            let config_delta = ConfigDelta::parse_str(s)?;
+            let config = config_delta.config.ok_or(anyhow!("none"))?;
+            Ok(config)
+        }
+
+        let config0 = parse_config(SAMPLE)?;
+        let json0 = serde_json::to_string(&config0)?;
+        let config1 = parse_config(SAMPLE)?;
+        let json1 = serde_json::to_string(&config1)?;
+        assert_eq!(json0, json1);
+        Ok(())
+    }
+}
