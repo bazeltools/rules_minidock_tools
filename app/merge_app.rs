@@ -1,13 +1,19 @@
 use clap::Parser;
 use rules_minidock_tools::{hash::sha256_value::Sha256Value, LayerConfig, UploadMetadata};
+use rules_minidock_tools::container_specs::config::ExecutionConfig;
 use std::io::Write;
 use std::path::PathBuf;
+use std::fs;
+use serde_json;
 
 #[derive(Parser, Debug)]
 #[clap(name = "merge app")]
 struct Opt {
     #[clap(long)]
     merger_config_path: PathBuf,
+
+    #[clap(long)]
+    external_config_path: Option<PathBuf>,
 
     #[clap(long)]
     relative_search_path: Option<PathBuf>,
@@ -31,6 +37,16 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let pusher_config =
         rules_minidock_tools::merge_config::MergeConfig::parse_file(&opt.merger_config_path)?;
+
+    let external_config =
+        match &opt.external_config_path {
+            Some(path) => {
+                let json_str = fs::read_to_string(&path)?;
+                serde_json::from_str(&json_str)?
+            }
+            None => ExecutionConfig::default()
+        };
+    println!("{:?}", external_config);
 
     let relative_search_path = opt.relative_search_path.clone();
 
