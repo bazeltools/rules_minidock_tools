@@ -4,6 +4,7 @@ use crate::{
     PathPair,
 };
 
+use crate::container_specs::config::ExecutionConfig;
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::bail;
@@ -25,6 +26,7 @@ pub struct LayerUploads {
 pub async fn merge(
     merge_config: &super::merge_config::MergeConfig,
     relative_search_path: &Option<PathBuf>,
+    external_execution_config: &Option<ExecutionConfig>,
 ) -> Result<
     (
         container_specs::ConfigDelta,
@@ -121,6 +123,13 @@ pub async fn merge(
         lut_data.insert((s.path, s.compressed), (s.sha, s.len));
     }
 
+    // External configs get merged first, then rules-based configs
+    if external_execution_config.is_some() {
+        let mut external_base_cfg = ConfigDelta::default();
+        external_base_cfg.config = external_execution_config.clone();
+        cfg.update_with(&external_base_cfg);
+    }
+
     for info in merge_config.infos.iter() {
         if let Some(config) = &info.config {
             cfg.update_with(config);
@@ -155,5 +164,6 @@ pub async fn merge(
             });
         }
     }
+
     Ok((cfg, manifest, layer_uploads))
 }
