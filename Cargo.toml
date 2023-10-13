@@ -26,7 +26,7 @@ async-recursion = "1.0.5"
 async-stream = "0.3.5"
 async-trait = "0.1.73"
 bytes = "1.4.0"
-clap = { version = "4.3.24", features = ["derive", "env"] }
+clap = { version = "4.4.6", features = ["derive", "env"] }
 console = "0.15.7"
 flate2 = "1.0.27"
 futures-core = "0.3.28"
@@ -35,12 +35,12 @@ hyper = { version = "0.14.27", features = ["full"] }
 hyper-rustls = "0.23.2"
 indicatif = { git = "https://github.com/console-rs/indicatif.git", rev = "2ca9d019fbb4b0aed11bfad984daef064998f5ef" }
 rustls = "0.20.8"
-serde = { version = "1.0.188", features = ["derive", "alloc"] }
+serde = { version = "1.0.189", features = ["derive", "alloc"] }
 serde_json = { version = "1.0.107", features = ["alloc"] }
 sha2 = "0.10.8"
 tempfile = "3.6.0"
 thiserror = "1.0.49"
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.33.0", features = ["full"] }
 tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.9", features = ["io"] }
 tracing = "0.1.38"
