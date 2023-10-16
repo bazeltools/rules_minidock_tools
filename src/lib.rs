@@ -52,8 +52,8 @@ pub struct Opt {
     #[clap(long)]
     pub merger_config_path: PathBuf,
 
-    #[clap(long)]
-    pub external_config_path: Option<PathBuf>,
+    #[clap(long, num_args(0..))]
+    pub external_config_path: Option<Vec<PathBuf>>,
 
     #[clap(long)]
     pub relative_search_path: Option<PathBuf>,
@@ -75,11 +75,16 @@ pub async fn merge_main(opt: Opt) -> Result<(), anyhow::Error> {
     let pusher_config = MergeConfig::parse_file(&opt.merger_config_path)?;
 
     let external_execution_config = match &opt.external_config_path {
-        Some(path) => {
-            let json_str = fs::read_to_string(&path)?;
-            Some(serde_json::from_str(&json_str)?)
+        Some(paths) => {
+            let mut configs = Vec::new();
+            for p in paths {
+                let json_str = fs::read_to_string(&p)?;
+                let config = serde_json::from_str(&json_str)?;
+                configs.push(config);
+            }
+            configs
         }
-        None => None,
+        None => Vec::new(),
     };
 
     let relative_search_path = opt.relative_search_path.clone();

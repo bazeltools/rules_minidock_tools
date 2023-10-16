@@ -44,6 +44,7 @@ async fn test_merge_app() {
     // When we give it an external config path, we should see those Labels show up
     args_with_ext.push("--external-config-path");
     args_with_ext.push("tests/data/external_merge_config.json");
+    let mut args_with_ext_2 = args_with_ext.clone();
 
     let opt_with_ext = Parser::try_parse_from(args_with_ext).unwrap();
     let result_with_ext = rules_minidock_tools::merge_main(opt_with_ext).await;
@@ -51,23 +52,36 @@ async fn test_merge_app() {
 
     let json_str_2 = fs::read_to_string(&config_path).unwrap();
     let config_delta_2: ConfigDelta = serde_json::from_str(&json_str_2).unwrap();
-    let mut expected_labels_2 = BTreeMap::new();
-    expected_labels_2.insert(
+    expected_labels.insert(
         "external-config-label-1".to_string(),
         "extlabel1".to_string(),
     );
-    expected_labels_2.insert(
+    expected_labels.insert(
         "external-config-label-2".to_string(),
         "extlabel2".to_string(),
     );
-    // Notably, we use label1 from the rules themselves, not from the external merge config
-    expected_labels_2.insert("label1".to_string(), "foo".to_string());
-    expected_labels_2.insert("label2".to_string(), "bar".to_string());
     let config = config_delta_2.config.unwrap();
-    assert!(config.labels.unwrap() == expected_labels_2);
+    assert!(config.labels.unwrap() == expected_labels);
     // Ensure the Env is here too
     assert!(config
         .env
         .unwrap()
         .contains(&"EXTERNALENV1=extenv1".to_string()));
+
+    args_with_ext_2.push("tests/data/external_merge_config_2.json");
+    println!("HERE!");
+    println!("{:?}", args_with_ext_2);
+
+    let opt_with_ext_2 = Parser::try_parse_from(args_with_ext_2).unwrap();
+    let result_with_ext = rules_minidock_tools::merge_main(opt_with_ext_2).await;
+    assert!(result_with_ext.is_ok());
+
+    let json_str_3 = fs::read_to_string(&config_path).unwrap();
+    let config_delta_3: ConfigDelta = serde_json::from_str(&json_str_3).unwrap();
+    expected_labels.insert(
+        "external-config-label-3".to_string(),
+        "extlabel3".to_string(),
+    );
+    let config = config_delta_3.config.unwrap();
+    assert!(config.labels.unwrap() == expected_labels);
 }

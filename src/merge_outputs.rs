@@ -26,7 +26,7 @@ pub struct LayerUploads {
 pub async fn merge(
     merge_config: &super::merge_config::MergeConfig,
     relative_search_path: &Option<PathBuf>,
-    external_execution_config: &Option<ExecutionConfig>,
+    external_execution_configs: &Vec<ExecutionConfig>,
 ) -> Result<
     (
         container_specs::ConfigDelta,
@@ -124,9 +124,9 @@ pub async fn merge(
     }
 
     // External configs get merged first, then rules-based configs
-    if external_execution_config.is_some() {
+    for config in external_execution_configs {
         let mut external_base_cfg = ConfigDelta::default();
-        external_base_cfg.config = external_execution_config.clone();
+        external_base_cfg.config = Some(config.clone());
         cfg.update_with(&external_base_cfg);
     }
 
