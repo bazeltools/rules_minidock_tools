@@ -1,0 +1,25 @@
+name: Tests hub
+
+on: workflow_dispatch
+
+jobs:
+   test-hub:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-20.04]
+        platform: [x86_64]
+        include:
+          - os: macos-latest
+            platform: x86_64
+          - os: macos-latest
+            platform: aarch64
+          - os: ubuntu-20.04
+            platform: x86_64
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: List open pull requests
+      run: hub pr list
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
