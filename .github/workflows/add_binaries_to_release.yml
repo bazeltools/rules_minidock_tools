@@ -25,6 +25,7 @@ jobs:
         with:
           toolchain: stable
       - run: rustup component add rustfmt
+      - run: sudo apt install hub
       - name: Build and upload artifact
         run: ./.github/workflows/build_binaries.sh ${{ matrix.os }} ${{ matrix.platform }} merge-app puller-app pusher-app
         env:
