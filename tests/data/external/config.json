@@ -1,0 +1,68 @@
+{
+  "created": "1970-01-01T00:00:00Z",
+  "author": "Bazel",
+  "architecture": "amd64",
+  "os": "linux",
+  "os.version": null,
+  "os.features": null,
+  "variant": null,
+  "config": {
+    "Env": [
+      "ASAN_SYMBOLIZER_PATH=/usr/local/bin/llvm-symbolizer",
+      "CC=/usr/local/bin/clang",
+      "DEBIAN_FRONTEND=noninteractive",
+      "GCOV=/dev/null",
+      "JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64",
+      "LD_LIBRARY_PATH=/usr/local/lib",
+      "MSAN_SYMBOLIZER_PATH=/usr/local/bin/llvm-symbolizer",
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "TSAN_SYMBOLIZER_PATH=/usr/local/bin/llvm-symbolizer",
+      "UBSAN_SYMBOLIZER_PATH=/usr/local/bin/llvm-symbolizer"
+    ],
+    "Entrypoint": [
+      "/usr/local/bin/bazel"
+    ],
+    "Volumes": null
+  },
+  "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+      "sha256:47cc65c6dd5782d0e91f984eabf79f23a6b323211b402c5b5d4f7db9b4eeedc3",
+      "sha256:c4e66be694ce6315fb5e8f8bdedbd06b52872645752b736f90bc536fa80408ec",
+      "sha256:84ff92691f909a05b224e1c56abb4864f01b4f8e3c854e4bb4c7baf1d3f6d652",
+      "sha256:be99d54f5ed0d9b3496879af345e917b5d5a1ee047ba62278190535f7dbe5683",
+      "sha256:1ab89a27d315955462f56f510233baadee35bc6e33eed96d7f812270b63172d1",
+      "sha256:84ff92691f909a05b224e1c56abb4864f01b4f8e3c854e4bb4c7baf1d3f6d652"
+    ]
+  },
+  "history": [
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "author": "Bazel",
+      "created_by": "bazel build ..."
+    },
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "author": "Bazel",
+      "created_by": "bazel build ..."
+    },
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "author": "Bazel",
+      "created_by": "bazel build ..."
+    },
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "author": "Bazel",
+      "created_by": "bazel build ..."
+    },
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "created_by": "/tmp/pkginstall/installer.sh"
+    },
+    {
+      "created": "1970-01-01T00:00:00Z",
+      "created_by": "/tmp/pkginstall/installer.sh"
+    }
+  ]
+}

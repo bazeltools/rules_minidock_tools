@@ -1,0 +1,10 @@
+{
+  "Env": [
+    "EXTERNALENV1=extenv1"
+  ],
+  "Labels": {
+    "label1": "this-should-get-overridden",
+    "external-config-label-1": "extlabel1",
+    "external-config-label-2": "extlabel2"
+  }
+}

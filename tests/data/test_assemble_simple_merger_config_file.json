@@ -1,0 +1,61 @@
+{
+  "infos": [
+    {
+      "config": {
+        "config": {
+          "Cmd": null,
+          "Entrypoint": null,
+          "Env": [
+            "ENV1=FOO",
+            "ENV2=BAR"
+          ],
+          "Labels": {
+            "label1": "foo",
+            "label2": "bar"
+          },
+          "User": null,
+          "WorkingDir": null
+        }
+      }
+    },
+    {
+      "config": {
+        "config": {
+          "Cmd": [
+            "/usr/bin/my_app"
+          ],
+          "Entrypoint": null,
+          "Env": [],
+          "Labels": {},
+          "User": "nfbasic",
+          "WorkingDir": null
+        }
+      }
+    },
+    {
+      "data": {
+        "path": "tests/data/file_b_data.tgz",
+        "short_path": "file_b_data.tgz"
+      }
+    },
+    {
+      "data": {
+        "path": "tests/data/file_a_data.tgz",
+        "short_path": "file_a_data.tgz"
+      }
+    }
+  ],
+  "remote_metadata": {
+    "config": {
+      "path": "tests/data/external/config.json",
+      "short_path": "external/config.json"
+    },
+    "digest": "sha256:08434856d8196632b936dd082b8e03bae0b41346299aedf60a0d481ab427a69f",
+    "manifest": {
+      "path": "tests/data/external/manifest.json",
+      "short_path": "external/manifest.json"
+    },
+    "registry": "l.gcr.io",
+    "repository": "google/bazel"
+  }
+}
