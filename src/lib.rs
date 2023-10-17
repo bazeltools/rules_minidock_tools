@@ -1,8 +1,7 @@
 use serde_json;
-use std::fs;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Write};
+use std::path::{Path, PathBuf};
 
 use anyhow::Error;
 use clap::Parser;
@@ -33,9 +32,6 @@ pub struct UploadMetadata {
 
 impl UploadMetadata {
     pub fn parse_file(f: impl AsRef<Path>) -> Result<UploadMetadata, Error> {
-        use std::fs::File;
-        use std::io::BufReader;
-
         // Open the file in read-only mode with buffer.
         let file = File::open(f.as_ref())?;
         let reader = BufReader::new(file);
@@ -78,8 +74,9 @@ pub async fn merge_main(opt: Opt) -> Result<(), anyhow::Error> {
         Some(paths) => {
             let mut configs = Vec::new();
             for p in paths {
-                let json_str = fs::read_to_string(&p)?;
-                let config = serde_json::from_str(&json_str)?;
+                let file = File::open(p)?;
+                let reader = BufReader::new(file);
+                let config = serde_json::from_reader(reader)?;
                 configs.push(config);
             }
             configs
@@ -92,7 +89,7 @@ pub async fn merge_main(opt: Opt) -> Result<(), anyhow::Error> {
     let (merge_config, mut manifest, layers) = merge_outputs::merge(
         &pusher_config,
         &relative_search_path,
-        &external_execution_config,
+        external_execution_config,
     )
     .await?;
 
@@ -129,8 +126,6 @@ pub async fn merge_main(opt: Opt) -> Result<(), anyhow::Error> {
         remote_metadata: pusher_config.remote_metadata.clone(),
     };
 
-    use std::fs::File;
-    use std::io::BufWriter;
     let upload_metadata_path = opt.upload_metadata_path;
 
     let file = File::create(&upload_metadata_path)?;
