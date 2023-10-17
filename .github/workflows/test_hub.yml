@@ -16,6 +16,7 @@ jobs:
             platform: aarch64
           - os: ubuntu-20.04
             platform: x86_64
+    permissions: read-all
     steps:
     - uses: actions/checkout@v2
     - name: Install hub for Linux
