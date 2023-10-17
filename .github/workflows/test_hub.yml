@@ -18,7 +18,11 @@ jobs:
             platform: x86_64
     steps:
     - uses: actions/checkout@v2
+    - name: Install hub for Linux
+      if: matrix.os == 'ubuntu-20.04'
+      run: sudo apt-get update && sudo apt-get install -y hub
     - name: List open pull requests
-      run: gh pr list
+      run: hub pr list
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HUB_VERBOSE: 'true'
