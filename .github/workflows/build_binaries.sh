@@ -58,6 +58,6 @@ for b in "$@"; do
     GENERATED_SHA_256=$(shasum -a 256 $OUTPUT_ASSET_NAME | awk '{print $1}')
     echo $GENERATED_SHA_256 > ${OUTPUT_ASSET_NAME}.sha256
     tag_name="${GITHUB_REF##*/}"
-    hub release edit -a $OUTPUT_ASSET_NAME -a ${OUTPUT_ASSET_NAME}.sha256  -m "" "$tag_name"
+    gh release upload "$tag_name" -a $OUTPUT_ASSET_NAME -a ${OUTPUT_ASSET_NAME}.sha256
 done
 
