@@ -20,7 +20,6 @@ if [ -z "$TARGET_PLATFORM" ]; then
 fi
 
 if [[ "$TARGET_OS" =~ macos.* ]]; then
-    brew install hub
     export TARGET_OS=macos
     export SDKROOT=$(xcrun -sdk macosx --show-sdk-path)
     export MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)
@@ -42,7 +41,6 @@ fi
 if [[ "$TARGET_OS" =~ ubuntu.* ]]; then
     TARGET_OS=linux
     sudo apt install -y musl-tools
-    sudo apt install -y hub
     rustup target add x86_64-unknown-linux-musl
     CROSS_BUILD_TARGET="--target=x86_64-unknown-linux-musl"
     APP_DIR="target/x86_64-unknown-linux-musl/release/"
