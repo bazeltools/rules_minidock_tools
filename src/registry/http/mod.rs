@@ -1,10 +1,13 @@
 mod blob;
 mod copy_operations;
+mod http_cli;
 mod util;
+use bytes::Bytes;
+use http_cli::HttpCli;
 use std::time::Duration;
 
 use crate::container_specs::manifest::Manifest;
-use crate::registry::http::util::{dump_body_to_string, redirect_uri_fetch};
+use crate::registry::http::util::dump_body_to_string;
 
 use anyhow::{bail, Context, Error};
 use http::Uri;
@@ -18,8 +21,6 @@ use tokio::time::timeout;
 use self::util::request_path_in_repository_as_string;
 
 use super::ContentAndContentType;
-
-type HttpCli = Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>;
 
 pub struct HttpRegistry {
     registry_uri: Uri,
@@ -44,7 +45,7 @@ impl super::RegistryCore for HttpRegistry {
         manifest: &Manifest,
         tag: &str,
     ) -> Result<Option<String>, Error> {
-        let manifest_bytes = manifest.to_bytes()?;
+        let manifest_bytes = Bytes::from(manifest.to_bytes()?);
 
         if let Ok(content_and_type) = self.fetch_manifest_as_string(tag).await {
             if manifest_bytes == content_and_type.content.as_bytes() {
@@ -53,13 +54,27 @@ impl super::RegistryCore for HttpRegistry {
         }
 
         let post_target_uri = self.repository_uri_from_path(format!("/manifests/{}", tag))?;
-        let req_builder = http::request::Builder::default()
-            .method(http::Method::PUT)
-            .uri(post_target_uri.clone())
-            .header("Content-Type", manifest.media_type());
 
-        let request = req_builder.body(Body::from(manifest_bytes))?;
-        let mut r: Response<Body> = self.http_client.request(request).await?;
+        let response = self
+            .http_client
+            .request(
+                &post_target_uri,
+                (),
+                |_, builder| async {
+                    builder
+                        .method(http::Method::PUT)
+                        .header("Content-Type", manifest.media_type())
+                        .body(Body::from(manifest_bytes.clone()))
+                        .map_err(|e| e.into())
+                },
+                0,
+            )
+            .await;
+
+        eprintln!("Got response: {:?}", response);
+
+        let mut r: Response<Body> = response?;
+        eprintln!("Got response code: {:?}", r.status());
 
         if r.status() != StatusCode::CREATED {
             bail!("Expected to get status code CREATED, but got {:#?}, hitting url: {:#?},\nUploading {:#?}\nResponse:{}", r.status(), post_target_uri, manifest, dump_body_to_string(&mut r).await? )
@@ -106,14 +121,24 @@ impl HttpRegistry {
         let reg = HttpRegistry {
             registry_uri: registry_uri.clone(),
             name: name.as_ref().to_string(),
-            http_client,
+            http_client: HttpCli {
+                inner_client: http_client,
+                credentials: Default::default(),
+                auth_info: Default::default(),
+            },
         };
 
         let req_uri = reg.v2_from_path("/")?;
-        let req_future = redirect_uri_fetch(
-            &reg.http_client,
-            |req| req.method(http::Method::HEAD),
+
+        let req_future = reg.http_client.request(
             &req_uri,
+            (),
+            |_, c| async {
+                c.method(http::Method::HEAD)
+                    .body(Body::from(""))
+                    .map_err(|e| e.into())
+            },
+            3,
         );
 
         let mut resp = match timeout(Duration::from_millis(4000), req_future).await {
