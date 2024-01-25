@@ -3,8 +3,6 @@ use anyhow::{bail, Error};
 
 use http::StatusCode;
 
-use super::util::redirect_uri_fetch;
-
 #[async_trait::async_trait]
 impl CopyOperations for super::HttpRegistry {
     fn registry_name(&self) -> RegistryName {
@@ -21,12 +19,19 @@ impl CopyOperations for super::HttpRegistry {
             digest, source_registry_name
         ))?;
 
-        let r = redirect_uri_fetch(
-            &self.http_client,
-            |req| req.method(http::Method::POST),
-            &uri,
-        )
-        .await?;
+        let r = self
+            .http_client
+            .request(
+                &uri,
+                (),
+                |_, c| async {
+                    c.method(http::Method::POST)
+                        .body(hyper::Body::from(""))
+                        .map_err(|e| e.into())
+                },
+                3,
+            )
+            .await?;
 
         if r.status() == StatusCode::CREATED {
             Ok(())

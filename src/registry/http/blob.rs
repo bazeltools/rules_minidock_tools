@@ -5,10 +5,8 @@ use crate::hash::sha256_value::Sha256Value;
 use crate::registry::ops::BYTES_IN_MB;
 use crate::registry::BlobStore;
 use anyhow::{bail, Context, Error};
+use http::StatusCode;
 use http::Uri;
-use http::{Response, StatusCode};
-
-use hyper::Body;
 
 use indicatif::ProgressBar;
 use sha2::Digest;
@@ -18,19 +16,17 @@ use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
 
-use super::util::{dump_body_to_string, redirect_uri_fetch};
+use super::util::dump_body_to_string;
 
 #[async_trait::async_trait]
 impl BlobStore for super::HttpRegistry {
     async fn blob_exists(&self, digest: &str) -> Result<bool, Error> {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
 
-        let mut r = redirect_uri_fetch(
-            &self.http_client,
-            |req| req.method(http::Method::HEAD),
-            &uri,
-        )
-        .await?;
+        let mut r = self
+            .http_client
+            .request_simple(&uri, http::Method::HEAD, 3)
+            .await?;
 
         if r.status() == StatusCode::NOT_FOUND {
             Ok(false)
@@ -56,9 +52,10 @@ impl BlobStore for super::HttpRegistry {
         let target_file = target_file.to_path_buf();
 
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
-        let mut response =
-            redirect_uri_fetch(&self.http_client, |req| req.method(http::Method::GET), &uri)
-                .await?;
+        let mut response = self
+            .http_client
+            .request_simple(&uri, http::Method::GET, 3)
+            .await?;
 
         if response.status() != StatusCode::OK {
             bail!(
@@ -123,11 +120,12 @@ impl BlobStore for super::HttpRegistry {
     ) -> Result<(), Error> {
         let post_target_uri = self.repository_uri_from_path("/blobs/uploads/")?;
         // We expect our POST request to get a location header of where to perform the real upload to.
-        let req_builder = http::request::Builder::default()
-            .method(http::Method::POST)
-            .uri(post_target_uri.clone());
-        let request = req_builder.body(Body::from(""))?;
-        let mut r: Response<Body> = self.http_client.request(request).await?;
+
+        let mut r = self
+            .http_client
+            .request_simple(&post_target_uri, http::Method::POST, 0)
+            .await?;
+
         if r.status() != StatusCode::ACCEPTED {
             bail!(
                 "Expected to get a ACCEPTED/202 for upload post request to {:?}, but got {:?}",
@@ -145,41 +143,62 @@ impl BlobStore for super::HttpRegistry {
             bail!("Was a redirection response code, but missing Location header, invalid response from server, body:\n{:#?}", body);
         };
 
-        let f = tokio::fs::File::open(local_path).await?;
-
-        let mut file_reader_stream = ReaderStream::new(f);
-
         let total_uploaded_bytes = Arc::new(Mutex::new(0));
-        let stream_byte_ref = Arc::clone(&total_uploaded_bytes);
 
-        let stream = async_stream::try_stream! {
+        struct Context {
+            progress_bar: Option<ProgressBar>,
+            length: u64,
+            local_path: std::path::PathBuf,
+        }
+        let mut r = self
+            .http_client
+            .request(
+                &location_uri,
+                Arc::new(Context {
+                    progress_bar,
+                    length,
+                    local_path: local_path.to_path_buf(),
+                }),
+                |context, builder| async move {
+                    let f = tokio::fs::File::open(context.local_path.clone()).await?;
 
-            while let Some(chunk) = file_reader_stream.next().await {
-                let chunk = chunk?;
-                let mut cntr = stream_byte_ref.lock().await;
-                *cntr += chunk.len();
+                    let stream = futures::stream::unfold(
+                        (context.progress_bar.clone(), ReaderStream::new(f), 0),
+                        |(progress_bar_cp, mut reader_stream, read_bytes)| async move {
+                            let nxt_chunk = reader_stream.next().await?;
 
-                if let Some(progress_bar) = &progress_bar {
-                        progress_bar.set_position(*cntr as u64 / BYTES_IN_MB);
-                }
-                yield chunk
-            }
-        };
+                            match nxt_chunk {
+                                Ok(chunk) => {
+                                    let read_bytes: usize = read_bytes + chunk.len();
+                                    if let Some(progress_bar) = &progress_bar_cp {
+                                        progress_bar.set_position(read_bytes as u64 / BYTES_IN_MB);
+                                    }
+                                    Some((Ok(chunk), (progress_bar_cp, reader_stream, read_bytes)))
+                                }
+                                Err(ex) => {
+                                    let e: Box<dyn std::error::Error + Send + Sync> = Box::new(ex);
+                                    Some((Err(e), (progress_bar_cp, reader_stream, read_bytes)))
+                                }
+                            }
+                        },
+                    );
 
-        let body =
-            hyper::Body::wrap_stream::<_, bytes::Bytes, Box<dyn std::error::Error + Send + Sync>>(
-                stream,
-            );
+                    let body = hyper::Body::wrap_stream::<
+                        _,
+                        bytes::Bytes,
+                        Box<dyn std::error::Error + Send + Sync>,
+                    >(stream);
 
-        let req_builder = http::request::Builder::default()
-            .method(http::Method::PUT)
-            .uri(location_uri.clone())
-            .header("Content-Length", length.to_string())
-            .header("Content-Type", "application/octet-stream");
-
-        let request = req_builder.body(body)?;
-
-        let mut r: Response<Body> = self.http_client.request(request).await?;
+                    builder
+                        .method(http::Method::PUT)
+                        .header("Content-Length", context.length)
+                        .header("Content-Type", "application/octet-stream")
+                        .body(body)
+                        .map_err(|e| e.into())
+                },
+                0,
+            )
+            .await?;
 
         let total_uploaded_bytes: usize = {
             let m = total_uploaded_bytes.lock().await;
