@@ -9,6 +9,7 @@ use http::Response;
 use http::Uri;
 
 use hyper::{Body, Client};
+use tokio::sync::Mutex;
 
 use self::authentication_flow::AuthResponse;
 use self::private_impl::{run_single_request, RequestFailType};
@@ -16,8 +17,8 @@ use self::private_impl::{run_single_request, RequestFailType};
 // https://raw.githubusercontent.com/google/go-containerregistry/main/images/credhelper-basic.svg
 pub struct HttpCli {
     pub inner_client: Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
-    pub credentials: Arc<tokio::sync::Mutex<Option<bool>>>,
-    pub auth_info: Arc<tokio::sync::Mutex<Option<AuthResponse>>>,
+    pub credentials: Arc<Mutex<Option<bool>>>,
+    pub auth_info: Arc<Mutex<Option<AuthResponse>>>,
 }
 
 impl HttpCli {

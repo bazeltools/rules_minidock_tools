@@ -50,6 +50,8 @@ pub async fn authenticate_request(
             new_path_q
         )
     })?;
+    // The wiring to supply basic_auth_info is TBD next
+    // right now it can never be set. Need to use the docker credentials helpers to supply this.
     let basic_auth_info: Option<String> = None;
     let mut response = run_single_request(
         Default::default(),
