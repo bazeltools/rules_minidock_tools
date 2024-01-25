@@ -165,11 +165,7 @@ impl BlobStore for super::HttpRegistry {
                     let stream = futures::stream::unfold(
                         (context.progress_bar.clone(), ReaderStream::new(f), 0),
                         |(progress_bar_cp, mut reader_stream, read_bytes)| async move {
-                            let nxt_chunk = if let Some(c) = reader_stream.next().await {
-                                c
-                            } else {
-                                return None;
-                            };
+                            let nxt_chunk = reader_stream.next().await?;
 
                             match nxt_chunk {
                                 Ok(chunk) => {
