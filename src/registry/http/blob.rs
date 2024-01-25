@@ -8,8 +8,6 @@ use anyhow::{bail, Context, Error};
 use http::StatusCode;
 use http::Uri;
 
-use hyper::Body;
-
 use indicatif::ProgressBar;
 use sha2::Digest;
 use tokio::io::AsyncWriteExt;
@@ -27,16 +25,7 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request(
-                &uri,
-                (),
-                |_, c| async {
-                    c.method(http::Method::HEAD)
-                        .body(Body::from(""))
-                        .map_err(|e| e.into())
-                },
-                3,
-            )
+            .request_simple(&uri, http::Method::HEAD, 3)
             .await?;
 
         if r.status() == StatusCode::NOT_FOUND {
@@ -65,16 +54,7 @@ impl BlobStore for super::HttpRegistry {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
         let mut response = self
             .http_client
-            .request(
-                &uri,
-                (),
-                |_, c| async {
-                    c.method(http::Method::GET)
-                        .body(Body::from(""))
-                        .map_err(|e| e.into())
-                },
-                3,
-            )
+            .request_simple(&uri, http::Method::GET, 3)
             .await?;
 
         if response.status() != StatusCode::OK {
@@ -143,17 +123,7 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request(
-                &post_target_uri,
-                (),
-                |_, builder| async {
-                    builder
-                        .method(http::Method::POST)
-                        .body(Body::from(""))
-                        .map_err(|e| e.into())
-                },
-                0,
-            )
+            .request_simple(&post_target_uri, http::Method::POST, 0)
             .await?;
 
         if r.status() != StatusCode::ACCEPTED {

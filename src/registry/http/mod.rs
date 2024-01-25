@@ -130,16 +130,9 @@ impl HttpRegistry {
 
         let req_uri = reg.v2_from_path("/")?;
 
-        let req_future = reg.http_client.request(
-            &req_uri,
-            (),
-            |_, c| async {
-                c.method(http::Method::HEAD)
-                    .body(Body::from(""))
-                    .map_err(|e| e.into())
-            },
-            3,
-        );
+        let req_future = reg
+            .http_client
+            .request_simple(&req_uri, http::Method::HEAD, 3);
 
         let mut resp = match timeout(Duration::from_millis(4000), req_future).await {
             Err(_) => bail!(

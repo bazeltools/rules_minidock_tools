@@ -21,6 +21,21 @@ pub struct HttpCli {
 }
 
 impl HttpCli {
+    pub async fn request_simple(
+        &self,
+        uri: &Uri,
+        method: http::Method,
+        retries: usize,
+    ) -> Result<Response<Body>, anyhow::Error> {
+        self.request(
+            uri,
+            method,
+            |method, c| async { c.method(method).body(Body::from("")).map_err(|e| e.into()) },
+            retries,
+        )
+        .await
+    }
+
     pub async fn request<Fut, F, B>(
         &self,
         uri: &Uri,
