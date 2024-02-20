@@ -38,7 +38,7 @@ hyper-rustls = "0.23.2"
 indicatif = { git = "https://github.com/console-rs/indicatif.git", rev = "2ca9d019fbb4b0aed11bfad984daef064998f5ef" }
 rustls = "0.20.8"
 serde = { version = "1.0.196", features = ["derive", "alloc"] }
-serde_json = { version = "1.0.113", features = ["alloc"] }
+serde_json = { version = "1.0.114", features = ["alloc"] }
 sha2 = "0.10.8"
 tempfile = "3.6.0"
 thiserror = "1.0.57"
