@@ -22,7 +22,7 @@ path = "app/merge_app.rs"
 
 [dependencies]
 anyhow = "1.0.82"
-async-recursion = "1.0.5"
+async-recursion = "1.1.0"
 async-stream = "0.3.5"
 async-trait = "0.1.80"
 base64 = "0.21.7"
