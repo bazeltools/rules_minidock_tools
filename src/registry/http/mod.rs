@@ -97,6 +97,7 @@ impl HttpRegistry {
         name: S2,
         docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
     ) -> Result<HttpRegistry, Error> {
+        let have_auth_helpers = !docker_authorization_helpers.is_empty();
         let mut uri_parts = registry_base.as_ref().parse::<Uri>()?.into_parts();
         // default to using https
         if uri_parts.scheme.is_none() {
@@ -135,7 +136,7 @@ impl HttpRegistry {
 
         let req_future = reg
             .http_client
-            .request_simple(&req_uri, http::Method::HEAD, 3, true);
+            .request_simple(&req_uri, http::Method::HEAD, 3, !have_auth_helpers);
 
         let mut resp = match timeout(Duration::from_millis(20000), req_future).await {
             Err(_) => bail!(
