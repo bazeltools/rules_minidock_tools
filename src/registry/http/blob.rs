@@ -25,8 +25,9 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request_simple(&uri, http::Method::HEAD, 3, false)
-            .await?;
+            .request_simple(&uri, http::Method::HEAD, 3)
+            .await
+            .context("testing if blob exists")?;
 
         if r.status() == StatusCode::NOT_FOUND {
             Ok(false)
@@ -54,8 +55,9 @@ impl BlobStore for super::HttpRegistry {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
         let mut response = self
             .http_client
-            .request_simple(&uri, http::Method::GET, 3, false)
-            .await?;
+            .request_simple(&uri, http::Method::GET, 3)
+            .await
+            .context("Requesting blob real path")?;
 
         if response.status() != StatusCode::OK {
             bail!(
@@ -123,8 +125,14 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request_simple(&post_target_uri, http::Method::POST, 0, false)
-            .await?;
+            .request_simple(&post_target_uri, http::Method::POST, 0)
+            .await
+            .with_context(|| {
+                format!(
+                    "Trying figure out http location for real upload target, posting to {}",
+                    post_target_uri
+                )
+            })?;
 
         if r.status() != StatusCode::ACCEPTED {
             bail!(
@@ -212,9 +220,9 @@ impl BlobStore for super::HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 0,
-                false,
             )
-            .await?;
+            .await
+            .context("Performing upload bytes operation")?;
 
         let total_uploaded_bytes: usize = {
             let m = total_uploaded_bytes.lock().await;

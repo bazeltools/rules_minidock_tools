@@ -14,7 +14,8 @@ use tokio::sync::Mutex;
 use crate::registry::DockerAuthenticationHelper;
 
 use self::authentication_flow::AuthResponse;
-use self::private_impl::{run_single_request, RequestFailType};
+use self::private_impl::run_single_request;
+pub use self::private_impl::RequestFailType;
 
 // https://raw.githubusercontent.com/google/go-containerregistry/main/images/credhelper-basic.svg
 pub struct HttpCli {
@@ -29,14 +30,12 @@ impl HttpCli {
         uri: &Uri,
         method: http::Method,
         retries: usize,
-        ignore_auth_fail: bool,
-    ) -> Result<Response<Body>, anyhow::Error> {
+    ) -> Result<Response<Body>, RequestFailType> {
         self.request(
             uri,
             method,
             |method, c| async { c.method(method).body(Body::from("")).map_err(|e| e.into()) },
             retries,
-            ignore_auth_fail
         )
         .await
     }
@@ -47,10 +46,7 @@ impl HttpCli {
         context: B,
         complete_request: F,
         retries: usize,
-        // Sometimes when we fetch the root of a repository, we might fail with an auth error
-        // not then the rest of the flow/targeted paths are fine. 
-        ignore_auth_fail: bool,
-    ) -> Result<Response<Body>, anyhow::Error>
+    ) -> Result<Response<Body>, RequestFailType>
     where
         F: Fn(B, http::request::Builder) -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<http::request::Request<Body>>>,
@@ -70,7 +66,7 @@ impl HttpCli {
             {
                 Ok(o) => return Ok(o),
                 Err(err) => {
-                    if attempt >= retries {
+                    if attempt > retries {
                         break err;
                     }
                     attempt += 1;
@@ -100,10 +96,7 @@ impl HttpCli {
                         RequestFailType::ConnectError(_) => continue,
                         RequestFailType::HyperError(_) => break err, // terminal.
                         RequestFailType::AnyhowError(_) => break err, // terminal.
-                        RequestFailType::AuthFailure(resp, auth_fail) => {
-                            if ignore_auth_fail {
-                                return Ok(resp);
-                            }
+                        RequestFailType::AuthFailure(_, auth_fail) => {
                             let auth_info = authentication_flow::authenticate_request(
                                 &auth_fail,
                                 &self.inner_client,
@@ -120,11 +113,6 @@ impl HttpCli {
                 }
             }
         };
-        Err(error).with_context(|| {
-            format!(
-                "Exhausted attempts, or ran into terminal error issuing http requests to URI: {:?}",
-                uri
-            )
-        })
+        Err(error)
     }
 }

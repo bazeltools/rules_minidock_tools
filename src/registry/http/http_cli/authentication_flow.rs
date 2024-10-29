@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::registry::{http::util::dump_body_to_string, DockerAuthenticationHelper};
+use crate::registry::{
+    http::{http_cli::RequestFailType, util::dump_body_to_string},
+    DockerAuthenticationHelper,
+};
 
 use anyhow::Context;
 
@@ -34,7 +37,7 @@ pub async fn authenticate_request(
     auth_fail: &BearerConfig,
     inner_client: &Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
-) -> anyhow::Result<AuthResponse> {
+) -> Result<AuthResponse, RequestFailType> {
     let mut parts = auth_fail.realm.clone().into_parts();
     let new_query_items = if let Some(scope) = &auth_fail.scope {
         format!("service={}&scope={}", auth_fail.service, scope)
@@ -113,12 +116,12 @@ pub async fn authenticate_request(
                 })?,
             )
         } else {
-            anyhow::bail!(
+            return Err(RequestFailType::AnyhowError(anyhow::anyhow!(
                 "Failed to run helper program at {:?}, got status code: {:?}, stderr: {:?}",
                 matching_helper.helper_path,
                 output.status,
                 String::from_utf8(output.stderr)
-            );
+            )));
         }
     } else {
         None
@@ -148,27 +151,22 @@ pub async fn authenticate_request(
         },
         &inner_client,
     )
-    .await
-    .with_context(|| {
-        format!(
-            "Failed to run new request to try authenticate to {:?}",
-            new_uri
-        )
-    })?;
+    .await?;
 
     if response.status().is_success() {
         let response_body = dump_body_to_string(&mut response).await?;
-        let response_auth_info: AuthResponse = serde_json::from_str(&response_body)?;
+        let response_auth_info: AuthResponse =
+            serde_json::from_str(&response_body).context("Decoding json body")?;
         return Ok(response_auth_info);
     } else {
         let try_response_body = dump_body_to_string(&mut response)
             .await
             .unwrap_or("".to_string());
-        anyhow::bail!(
+        return Err(RequestFailType::AnyhowError(anyhow::anyhow!(
             "Failed to authenticate to {:?}, got status code: {:?}, body:\n{}",
             new_uri,
             response.status(),
             try_response_body
-        );
+        )));
     }
 }
