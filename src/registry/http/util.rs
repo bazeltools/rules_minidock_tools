@@ -1,5 +1,5 @@
 use crate::registry::ContentAndContentType;
-use anyhow::{bail, Error};
+use anyhow::{bail, Context as _, Error};
 use http::Uri;
 use http::{Response, StatusCode};
 use hyper::body::HttpBody as _;
@@ -38,9 +38,9 @@ pub(super) async fn request_path_in_repository_as_string(
                     .map_err(|e| e.into())
             },
             3,
-            false
         )
-        .await?;
+        .await
+        .context("Requesting repository path")?;
 
     let metadata = dump_body_to_string(&mut r).await?;
 

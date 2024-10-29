@@ -8,12 +8,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::container_specs::manifest::Manifest;
+use crate::registry::http::http_cli::RequestFailType;
 use crate::registry::http::util::dump_body_to_string;
 
 use anyhow::{bail, Context, Error};
 use http::Uri;
 use http::{Response, StatusCode};
-
 use hyper::{Body, Client};
 use hyper_rustls::ConfigBuilderExt;
 
@@ -69,7 +69,6 @@ impl super::RegistryCore for HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 0,
-                false,
             )
             .await;
 
@@ -97,7 +96,7 @@ impl HttpRegistry {
         name: S2,
         docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
     ) -> Result<HttpRegistry, Error> {
-        let have_auth_helpers = !docker_authorization_helpers.is_empty();
+        let no_auth_helpers = docker_authorization_helpers.is_empty();
         let mut uri_parts = registry_base.as_ref().parse::<Uri>()?.into_parts();
         // default to using https
         if uri_parts.scheme.is_none() {
@@ -136,19 +135,28 @@ impl HttpRegistry {
 
         let req_future = reg
             .http_client
-            .request_simple(&req_uri, http::Method::HEAD, 3, !have_auth_helpers);
+            .request_simple(&req_uri, http::Method::HEAD, 3);
 
-        let mut resp = match timeout(Duration::from_millis(20000), req_future).await {
-            Err(_) => bail!(
-                "Timed out connecting to registry {:?}, after waiting 20 seconds.",
-                registry_uri
-            ),
-            Ok(e) => e.with_context(|| {
-                format!(
+        let response = timeout(Duration::from_millis(20000), req_future)
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "Timed out connecting to registry {:?}, after waiting 20 seconds.",
+                    registry_uri
+                )
+            })?;
+
+        let mut resp = match response {
+            Ok(r) => r,
+            Err(RequestFailType::AuthFailure(r, _)) if no_auth_helpers => r,
+            Err(e) => {
+                println!("No auth helpers? {} ... {:#?}", no_auth_helpers, e);
+                Err(e).context(format!(
                     "When trying to query base url of registry: {:?} ; query uri: {:?}",
                     registry_uri, req_uri
-                )
-            })?,
+                ))?;
+                unreachable!()
+            }
         };
 
         if resp

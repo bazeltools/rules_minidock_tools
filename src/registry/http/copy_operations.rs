@@ -1,5 +1,5 @@
 use crate::registry::{CopyOperations, RegistryName};
-use anyhow::{bail, Error};
+use anyhow::{bail, Context as _, Error};
 
 use http::StatusCode;
 
@@ -30,9 +30,9 @@ impl CopyOperations for super::HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 3,
-                false,
             )
-            .await?;
+            .await
+            .context("Issusing http request for copy between registries")?;
 
         if r.status() == StatusCode::CREATED {
             Ok(())
