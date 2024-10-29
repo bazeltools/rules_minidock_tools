@@ -38,6 +38,7 @@ pub(super) async fn request_path_in_repository_as_string(
                     .map_err(|e| e.into())
             },
             3,
+            false
         )
         .await?;
 

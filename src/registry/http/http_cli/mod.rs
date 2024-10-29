@@ -29,12 +29,14 @@ impl HttpCli {
         uri: &Uri,
         method: http::Method,
         retries: usize,
+        ignore_auth_fail: bool,
     ) -> Result<Response<Body>, anyhow::Error> {
         self.request(
             uri,
             method,
             |method, c| async { c.method(method).body(Body::from("")).map_err(|e| e.into()) },
             retries,
+            ignore_auth_fail
         )
         .await
     }
@@ -45,6 +47,9 @@ impl HttpCli {
         context: B,
         complete_request: F,
         retries: usize,
+        // Sometimes when we fetch the root of a repository, we might fail with an auth error
+        // not then the rest of the flow/targeted paths are fine. 
+        ignore_auth_fail: bool,
     ) -> Result<Response<Body>, anyhow::Error>
     where
         F: Fn(B, http::request::Builder) -> Fut,
@@ -53,9 +58,7 @@ impl HttpCli {
     {
         let mut uri = uri.clone();
         let mut attempt = 0;
-        let mut last_error: Option<RequestFailType> = None;
-        while attempt < retries + 1 {
-            attempt += 1;
+        let error = loop {
             match run_single_request(
                 self.auth_info.clone(),
                 &uri,
@@ -67,9 +70,13 @@ impl HttpCli {
             {
                 Ok(o) => return Ok(o),
                 Err(err) => {
-                    last_error = Some(err);
+                    if attempt >= retries {
+                        break err;
+                    }
+                    attempt += 1;
+
                     // Unwrap safe because we set the line right before this.
-                    match &last_error.as_ref().unwrap() {
+                    match err {
                         RequestFailType::Redirection(new_url) => {
                             let new_uri = new_url.parse::<Uri>().with_context(|| {
                                 format!("Failed to parse new url {:?}", new_url)
@@ -91,11 +98,14 @@ impl HttpCli {
                             continue;
                         }
                         RequestFailType::ConnectError(_) => continue,
-                        RequestFailType::HyperError(_) => break, // terminal.
-                        RequestFailType::AnyhowError(_) => break, // terminal.
-                        RequestFailType::AuthFailure(auth_fail) => {
+                        RequestFailType::HyperError(_) => break err, // terminal.
+                        RequestFailType::AnyhowError(_) => break err, // terminal.
+                        RequestFailType::AuthFailure(resp, auth_fail) => {
+                            if ignore_auth_fail {
+                                return Ok(resp);
+                            }
                             let auth_info = authentication_flow::authenticate_request(
-                                auth_fail,
+                                &auth_fail,
                                 &self.inner_client,
                                 self.docker_authorization_helpers.clone(),
                             )
@@ -109,11 +119,12 @@ impl HttpCli {
                     }
                 }
             }
-        }
-        match last_error {
-            None => anyhow::bail!("We failed in trying to issue http requests, but we have no last error. Unexpected state. Attempting to query: {:?}", uri),
-            Some(ex) =>
-                Err(ex).with_context(|| format!("Exhausted attempts, or ran into terminal error issuing http requests to URI: {:?}", uri))
-        }
+        };
+        Err(error).with_context(|| {
+            format!(
+                "Exhausted attempts, or ran into terminal error issuing http requests to URI: {:?}",
+                uri
+            )
+        })
     }
 }

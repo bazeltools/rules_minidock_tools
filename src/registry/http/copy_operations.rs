@@ -30,6 +30,7 @@ impl CopyOperations for super::HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 3,
+                false,
             )
             .await?;
 

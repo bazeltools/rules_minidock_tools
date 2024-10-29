@@ -105,8 +105,8 @@ pub enum RequestFailType {
     HyperError(hyper::Error),
     #[error("Internal error: '{0:?}'")]
     AnyhowError(anyhow::Error),
-    #[error("Auth failed: '{0}'")]
-    AuthFailure(BearerConfig),
+    #[error("Auth failed: '{1}'")]
+    AuthFailure(Response<Body>, BearerConfig),
     #[error("Got a redirection code: '{0}'")]
     Redirection(String),
 }
@@ -163,7 +163,7 @@ where
                             auth_header
                         )
                     })?;
-                    return Err(RequestFailType::AuthFailure(b));
+                    return Err(RequestFailType::AuthFailure(r, b));
                 }
             }
             if r.status().is_redirection() {
