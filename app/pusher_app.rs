@@ -190,9 +190,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let tmp_config = tempfile::NamedTempFile::new()?;
     config.write_file(tmp_config.path())?;
     let config_path: PathBuf = tmp_config.path().to_path_buf();
-    let (config_sha, config_sha_len) = Sha256Value::from_path(&config_path).await?;
-    let config_sha_printed = format!("sha256:{}", config_sha);
-    manifest.config.digest = config_sha_printed.clone();
+    let (config_sha, config_len) = Sha256Value::from_path(&config_path).await?;
+    manifest.update_config(config_sha, config_len);
+    let config_sha_printed = manifest.config.digest.clone();
 
     let mut local_digests: HashMap<String, PathBuf> = HashMap::default();
     for local_data in upload_metadata.layer_configs.iter() {
@@ -247,12 +247,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 Ok(true) => Ok(ActionsTaken::default()),
                 Err(e) => Err(e),
                 Ok(false) => destination_registry
-                    .upload_blob(
-                        &config_path,
-                        &config_sha_printed,
-                        config_sha_len.0 as u64,
-                        None,
-                    )
+                    .upload_blob(&config_path, &config_sha_printed, config_len.0 as u64, None)
                     .await
                     .map(|_| ActionsTaken::default()),
             }
