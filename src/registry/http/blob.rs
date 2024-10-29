@@ -25,7 +25,7 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request_simple(&uri, http::Method::HEAD, 3)
+            .request_simple(&uri, http::Method::HEAD, 3, false)
             .await?;
 
         if r.status() == StatusCode::NOT_FOUND {
@@ -54,7 +54,7 @@ impl BlobStore for super::HttpRegistry {
         let uri = self.repository_uri_from_path(format!("/blobs/{}", digest))?;
         let mut response = self
             .http_client
-            .request_simple(&uri, http::Method::GET, 3)
+            .request_simple(&uri, http::Method::GET, 3, false)
             .await?;
 
         if response.status() != StatusCode::OK {
@@ -123,7 +123,7 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request_simple(&post_target_uri, http::Method::POST, 0)
+            .request_simple(&post_target_uri, http::Method::POST, 0, false)
             .await?;
 
         if r.status() != StatusCode::ACCEPTED {
@@ -212,6 +212,7 @@ impl BlobStore for super::HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 0,
+                false,
             )
             .await?;
 

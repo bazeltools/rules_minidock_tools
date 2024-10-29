@@ -69,6 +69,7 @@ impl super::RegistryCore for HttpRegistry {
                         .map_err(|e| e.into())
                 },
                 0,
+                false,
             )
             .await;
 
@@ -134,7 +135,7 @@ impl HttpRegistry {
 
         let req_future = reg
             .http_client
-            .request_simple(&req_uri, http::Method::HEAD, 3);
+            .request_simple(&req_uri, http::Method::HEAD, 3, true);
 
         let mut resp = match timeout(Duration::from_millis(20000), req_future).await {
             Err(_) => bail!(
