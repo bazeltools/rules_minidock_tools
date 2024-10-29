@@ -96,7 +96,11 @@ impl HttpRegistry {
         name: S2,
         docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
     ) -> Result<HttpRegistry, Error> {
+<<<<<<< HEAD
         let no_auth_helpers = docker_authorization_helpers.is_empty();
+=======
+        let have_auth_helpers = !docker_authorization_helpers.is_empty();
+>>>>>>> 0126aa699c696388436cddb72bed96617ced1230
         let mut uri_parts = registry_base.as_ref().parse::<Uri>()?.into_parts();
         // default to using https
         if uri_parts.scheme.is_none() {
