@@ -1,4 +1,6 @@
-use crate::registry::http::util::dump_body_to_string;
+use std::sync::Arc;
+
+use crate::registry::{http::util::dump_body_to_string, DockerAuthenticationHelper};
 
 use anyhow::Context;
 
@@ -7,6 +9,7 @@ use http::Uri;
 use hyper::{Body, Client};
 
 use serde::{Deserialize, Serialize};
+use tokio::{io::AsyncWriteExt, process::Command};
 
 use super::private_impl::{run_single_request, BearerConfig};
 
@@ -18,9 +21,19 @@ pub struct AuthResponse {
     pub issued_at: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct BasicAuthResponse {
+    #[serde(rename = "Username")]
+    username: String,
+
+    #[serde(rename = "Secret")]
+    secret: String,
+}
+
 pub async fn authenticate_request(
     auth_fail: &BearerConfig,
     inner_client: &Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
 ) -> anyhow::Result<AuthResponse> {
     let mut parts = auth_fail.realm.clone().into_parts();
     let new_query_items = if let Some(scope) = &auth_fail.scope {
@@ -50,9 +63,67 @@ pub async fn authenticate_request(
             new_path_q
         )
     })?;
-    // The wiring to supply basic_auth_info is TBD next
-    // right now it can never be set. Need to use the docker credentials helpers to supply this.
-    let basic_auth_info: Option<String> = None;
+
+    let matching_helper_opt: Option<&DockerAuthenticationHelper> = docker_authorization_helpers
+        .iter()
+        .find(|e| e.registry == auth_fail.service);
+
+    let basic_auth_info = if let Some(matching_helper) = matching_helper_opt {
+        let mut child = Command::new(&matching_helper.helper_path)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .with_context(|| {
+                format!(
+                    "Failed to start helper program at {:?}",
+                    matching_helper.helper_path
+                )
+            })?;
+
+        let mut child_stdin = child
+            .stdin
+            .take()
+            .ok_or(anyhow::anyhow!("Failed to get stdin from running process"))?;
+        child_stdin
+            .write_all(format!("GET {}\n", &auth_fail.service).as_bytes())
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed when trying to send domain into the stdin of the auth helper at {:?}",
+                    &matching_helper.helper_path
+                )
+            })?;
+        drop(child_stdin);
+
+        let output = child.wait_with_output().await.with_context(|| {
+            format!(
+                "Failed waiting for output from subprocess calling {:?}",
+                matching_helper.helper_path
+            )
+        })?;
+
+        if output.status.success() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout);
+            Some(
+                serde_json::from_str::<BasicAuthResponse>(&stdout_str).with_context(|| {
+                    format!(
+                        "Failed to parse output from {:?}, saw output:\n{}",
+                        matching_helper.helper_path, stdout_str
+                    )
+                })?,
+            )
+        } else {
+            anyhow::bail!(
+                "Failed to run helper program at {:?}, got status code: {:?}, stderr: {:?}",
+                matching_helper.helper_path,
+                output.status,
+                String::from_utf8(output.stderr)
+            );
+        }
+    } else {
+        None
+    };
+
     let mut response = run_single_request(
         Default::default(),
         &new_uri,
@@ -64,7 +135,10 @@ pub async fn authenticate_request(
             let b3 = if let Some(ai) = basic_auth_info {
                 b2.header(
                     "Authorization",
-                    format!("Basic {}", BASE64_STANDARD.encode(ai)),
+                    format!(
+                        "Basic {}",
+                        BASE64_STANDARD.encode(format!("{}:{}", ai.username, ai.secret).as_bytes())
+                    ),
                 )
             } else {
                 b2

@@ -5,6 +5,7 @@ use http::Uri;
 use http::{Response, StatusCode};
 
 use hyper::{Body, Client};
+use regex::Regex;
 
 use super::authentication_flow::AuthResponse;
 
@@ -32,21 +33,45 @@ impl BearerConfig {
         let mut scope = None;
         let mut service = None;
 
-        let mut auth_header = auth_header
-            .strip_prefix("Bearer")
+        let auth_header = auth_header
+            .strip_prefix("Bearer ")
             .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?;
-        auth_header = auth_header.trim_start_matches(' ');
-        for part in auth_header.split(',') {
-            let mut part = part.split('=');
-            let key = part
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?
-                .trim();
-            let value = part
-                .next()
-                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?
-                .trim()
-                .trim_matches('"');
+
+        // the csv thats used here the csv parsers i saw don't like
+        // of the shape key="value",key="value3,e",y="value"
+        let csv_split_safe_regex = Regex::new(r#"(".*?"|[^",\s]+)"#).unwrap();
+
+        // this will split into pairs of '{key}=' and 'value'
+        let pairs: Vec<&str> = csv_split_safe_regex
+            .captures_iter(auth_header)
+            .map(|e| {
+                let (_, [m]) = e.extract();
+                m
+            })
+            .collect();
+        if (pairs.len() % 2) != 0 {
+            anyhow::bail!("Invalid auth header, we attempted to split on csv, and expected an even key value pairs but got: {}; pairs: {:#?}", pairs.len(), pairs);
+        }
+
+        for element_idx in 0..(pairs.len() / 2) {
+            let key_pos = element_idx * 2;
+            let value_pos = key_pos + 1;
+            // these errors below shouldn't really occur by construction.
+            let key = pairs
+                .get(key_pos)
+                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?;
+            let value = pairs
+                .get(value_pos)
+                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?;
+            let value = value.trim_matches('"');
+            let key = if let Some(p) = key.strip_suffix("=") {
+                p.trim_matches('"')
+            } else {
+                anyhow::bail!(
+                    "Invalid auth header, looking at part: '{}', we couldn't find a trailing '='",
+                    key
+                );
+            };
             match key {
                 "realm" => {
                     realm = Some(
@@ -78,7 +103,7 @@ pub enum RequestFailType {
     ConnectError(hyper::Error),
     #[error("Generic hyper error: '{0}'")]
     HyperError(hyper::Error),
-    #[error("Internal error: '{0}'")]
+    #[error("Internal error: '{0:?}'")]
     AnyhowError(anyhow::Error),
     #[error("Auth failed: '{0}'")]
     AuthFailure(BearerConfig),
@@ -105,7 +130,9 @@ where
     let req_builder = http::request::Builder::default().uri(uri);
 
     let li = auth_info.lock().await;
-    let auth_token = li.as_ref().and_then(|e| e.token.clone());
+    let auth_token = li
+        .as_ref()
+        .and_then(|e| e.token.as_ref().or(e.access_token.as_ref()).cloned());
     drop(li);
     let req_builder = if let Some(token) = auth_token {
         req_builder.header(http::header::AUTHORIZATION, format!("Bearer {}", token))
@@ -132,7 +159,7 @@ where
                 {
                     let b = BearerConfig::from_auth_header(auth_header).with_context(|| {
                         format!(
-                            "unable to parse auth header when issuing request, got header {:?}",
+                            "unable to parse auth header when issuing request, got header '{}'",
                             auth_header
                         )
                     })?;

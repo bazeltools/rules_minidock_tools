@@ -143,6 +143,21 @@ impl BlobStore for super::HttpRegistry {
             bail!("Was a redirection response code, but missing Location header, invalid response from server, body:\n{:#?}", body);
         };
 
+        // Sometimes we can receive new URI's that don't contain hosts
+        // we need to supply this information from the last URI we used in that case
+        let location_uri = if location_uri.host().is_some() {
+            location_uri
+        } else {
+            let mut parts = post_target_uri.into_parts();
+            parts.path_and_query = location_uri.path_and_query().cloned();
+            Uri::from_parts(parts).with_context(|| {
+                format!(
+                    "Constructed an invalid uri from parts, new uri: {:?}",
+                    location_uri
+                )
+            })?
+        };
+
         let total_uploaded_bytes = Arc::new(Mutex::new(0));
 
         struct Context {

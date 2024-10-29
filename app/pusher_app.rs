@@ -36,6 +36,11 @@ struct Opt {
     /// Do not upload the manifests, meaning just blobs that don't effect tags/usage are synchronized.
     #[clap(long)]
     skip_manifest_upload: bool,
+
+    #[clap(long)]
+    // List of comma separated helpers. with the registry:helper_path
+    //e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    docker_authorization_helpers: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
@@ -94,6 +99,12 @@ async fn main() -> Result<(), anyhow::Error> {
         );
     }
 
+    let docker_authorization_helpers = if let Some(arg) = &opt.docker_authorization_helpers {
+        Arc::new(rules_minidock_tools::registry::DockerAuthenticationHelper::from_str(arg)?)
+    } else {
+        Default::default()
+    };
+
     let pusher_config_content = std::fs::read_to_string(&opt.pusher_config)?;
     let pusher_config: PusherConfig = serde_json::from_str(pusher_config_content.as_str())
         .with_context(|| {
@@ -130,8 +141,14 @@ async fn main() -> Result<(), anyhow::Error> {
                 bail!("Passed in an invalid registry, its an empty string.")
             }
             let repository = pusher_config.repository.clone();
+            let docker_authorization_helpers = docker_authorization_helpers.clone();
             Ok(tokio::spawn(async move {
-                rules_minidock_tools::registry::from_maybe_domain_and_name(&r, &repository).await
+                rules_minidock_tools::registry::from_maybe_domain_and_name(
+                    &r,
+                    &repository,
+                    docker_authorization_helpers,
+                )
+                .await
             }))
         })
         .collect();
@@ -158,8 +175,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 None
             }
             (Some(registry), Some(repository)) => Some(
-                rules_minidock_tools::registry::from_maybe_domain_and_name(&registry, &repository)
-                    .await?,
+                rules_minidock_tools::registry::from_maybe_domain_and_name(
+                    &registry,
+                    &repository,
+                    docker_authorization_helpers,
+                )
+                .await?,
             ),
         }
     } else {

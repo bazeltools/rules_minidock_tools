@@ -4,6 +4,7 @@ mod http_cli;
 mod util;
 use bytes::Bytes;
 use http_cli::HttpCli;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::container_specs::manifest::Manifest;
@@ -20,7 +21,7 @@ use tokio::time::timeout;
 
 use self::util::request_path_in_repository_as_string;
 
-use super::ContentAndContentType;
+use super::{ContentAndContentType, DockerAuthenticationHelper};
 
 pub struct HttpRegistry {
     registry_uri: Uri,
@@ -93,6 +94,7 @@ impl HttpRegistry {
     pub(crate) async fn from_maybe_domain_and_name<S: AsRef<str> + Send, S2: AsRef<str> + Send>(
         registry_base: S,
         name: S2,
+        docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
     ) -> Result<HttpRegistry, Error> {
         let mut uri_parts = registry_base.as_ref().parse::<Uri>()?.into_parts();
         // default to using https
@@ -123,7 +125,7 @@ impl HttpRegistry {
             name: name.as_ref().to_string(),
             http_client: HttpCli {
                 inner_client: http_client,
-                credentials: Default::default(),
+                docker_authorization_helpers,
                 auth_info: Default::default(),
             },
         };
@@ -134,9 +136,9 @@ impl HttpRegistry {
             .http_client
             .request_simple(&req_uri, http::Method::HEAD, 3);
 
-        let mut resp = match timeout(Duration::from_millis(4000), req_future).await {
+        let mut resp = match timeout(Duration::from_millis(20000), req_future).await {
             Err(_) => bail!(
-                "Timed out connecting to registry {:?}, after waiting 4 seconds.",
+                "Timed out connecting to registry {:?}, after waiting 20 seconds.",
                 registry_uri
             ),
             Ok(e) => e.with_context(|| {

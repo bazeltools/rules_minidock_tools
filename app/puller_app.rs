@@ -1,5 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+use anyhow::Context;
 use clap::Parser;
 
 use rules_minidock_tools::container_specs::{ConfigDelta, Manifest};
@@ -20,15 +21,30 @@ struct Opt {
 
     #[clap(long)]
     architecture: String,
+
+    #[clap(long)]
+    // List of comma separated helpers. with the registry:helper_path
+    //e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    docker_authorization_helpers: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let opt = Opt::parse();
 
-    let registry =
-        rules_minidock_tools::registry::from_maybe_domain_and_name(&opt.registry, &opt.repository)
-            .await?;
+    let docker_authorization_helpers = if let Some(arg) = &opt.docker_authorization_helpers {
+        Arc::new(rules_minidock_tools::registry::DockerAuthenticationHelper::from_str(arg)?)
+    } else {
+        Default::default()
+    };
+
+    let registry = rules_minidock_tools::registry::from_maybe_domain_and_name(
+        &opt.registry,
+        &opt.repository,
+        docker_authorization_helpers,
+    )
+    .await
+    .with_context(|| format!("Failed to connect to registry name: {}", opt.registry))?;
     let manifest_ret = registry.fetch_manifest_as_string(&opt.digest).await?;
 
     let cfg_path = PathBuf::from("config.json");

@@ -39,7 +39,12 @@ impl<'de> Deserialize<'de> for BlobReference {
             "application/vnd.docker.image.rootfs.diff.tar" => {
                 (SpecificationType::Docker, BlobReferenceType::Layer)
             }
-            other => return Err(D::Error::custom(format!("Invalid media type: {}", other))),
+            other => {
+                return Err(D::Error::custom(format!(
+                    "Invalid media type for BlobReference: {}",
+                    other
+                )))
+            }
         };
 
         Ok(BlobReference {
@@ -112,9 +117,14 @@ impl<'de> Deserialize<'de> for Manifest {
         }
 
         let specification_type = match r.media_type.as_str() {
-            "application/vnd.oci.image.config.v1+json" => SpecificationType::Oci,
+            "application/vnd.oci.image.manifest.v1+json" => SpecificationType::Oci,
             "application/vnd.docker.distribution.manifest.v2+json" => SpecificationType::Docker,
-            other => return Err(D::Error::custom(format!("Invalid media type: {}", other))),
+            other => {
+                return Err(D::Error::custom(format!(
+                    "Invalid media type for Manifest: {}",
+                    other
+                )))
+            }
         };
 
         Ok(Manifest {

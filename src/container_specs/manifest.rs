@@ -18,7 +18,7 @@ pub struct Manifest {
 impl Manifest {
     pub fn media_type(&self) -> &'static str {
         match self.specification_type {
-            SpecificationType::Oci => "application/vnd.oci.image.config.v1+json",
+            SpecificationType::Oci => "application/vnd.oci.image.manifest.v1+json",
             SpecificationType::Docker => "application/vnd.docker.distribution.manifest.v2+json",
         }
     }
