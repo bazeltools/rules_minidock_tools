@@ -33,6 +33,7 @@ pub(super) async fn request_path_in_repository_as_string(
                         "Accept",
                         "application/vnd.docker.distribution.manifest.v2+json",
                     )
+                    .header("Accept", "application/vnd.oci.image.manifest.v1+json")
                     .body(Body::from(""))
                     .map_err(|e| e.into())
             },

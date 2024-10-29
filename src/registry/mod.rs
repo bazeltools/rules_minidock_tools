@@ -1,9 +1,46 @@
 mod http;
 pub mod ops;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use indicatif::ProgressBar;
+
+#[derive(Debug, Clone)]
+pub struct DockerAuthenticationHelper {
+    pub registry: String,
+    pub helper_path: PathBuf,
+}
+
+impl DockerAuthenticationHelper {
+    pub fn from_str(s: &str) -> anyhow::Result<Vec<Self>> {
+        Ok(s.split(",")
+            .map(|e| {
+                let mut split = e.split(":");
+                let registry = split.next().with_context(|| {
+                    format!("Failed to parse authentication helpers from {}", e)
+                })?;
+                let helper_path = split.next().with_context(|| {
+                    format!("Failed to parse authentication helpers from {}", e)
+                })?;
+                let helper_path = PathBuf::from(helper_path);
+                if !helper_path.exists() {
+                    anyhow::bail!(
+                        "Checking path for registry {}, looked for passed helper in: {:?}",
+                        registry,
+                        helper_path
+                    );
+                }
+                Ok(DockerAuthenticationHelper {
+                    registry: registry.to_string(),
+                    helper_path,
+                })
+            })
+            .collect::<anyhow::Result<Vec<DockerAuthenticationHelper>>>()?)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ContentAndContentType {
@@ -70,7 +107,13 @@ impl<T> Registry for T where T: RegistryCore + BlobStore + CopyOperations {}
 pub async fn from_maybe_domain_and_name<S: AsRef<str> + Send, S2: AsRef<str> + Send>(
     registry_base: S,
     name: S2,
+    docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
 ) -> Result<Arc<dyn Registry>, Error> {
-    let inner_reg = http::HttpRegistry::from_maybe_domain_and_name(registry_base, name).await?;
+    let inner_reg = http::HttpRegistry::from_maybe_domain_and_name(
+        registry_base,
+        name,
+        docker_authorization_helpers,
+    )
+    .await?;
     Ok(Arc::new(inner_reg))
 }
