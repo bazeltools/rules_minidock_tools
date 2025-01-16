@@ -5,7 +5,7 @@ use clap::Parser;
 
 use rules_minidock_tools::container_specs::{ConfigDelta, Manifest};
 
-// cargo run --bin puller-app -- --registry l.gcr.io --repository google/bazel --digest sha256:08434856d8196632b936dd082b8e03bae0b41346299aedf60a0d481ab427a69f
+// cargo run --bin puller-app -- --registry l.gcr.io --repository google/bazel --digest sha256:08434856d8196632b936dd082b8e03bae0b41346299aedf60a0d481ab427a69f --architecture=x86_64
 
 #[derive(Parser, Debug)]
 #[clap(name = "puller app")]
@@ -23,8 +23,12 @@ struct Opt {
     architecture: String,
 
     #[clap(long)]
-    // List of comma separated helpers. with the registry:helper_path
-    //e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    // List of comma separated helpers in registry:helper_path format;
+    // requests will attempt to match a helper first based on the "service"
+    // field in the authentication challenge, and then based on the registry
+    // param passed to this tool.
+    // e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    // 
     docker_authorization_helpers: Option<String>,
 }
 
