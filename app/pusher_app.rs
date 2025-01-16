@@ -38,8 +38,12 @@ struct Opt {
     skip_manifest_upload: bool,
 
     #[clap(long)]
-    // List of comma separated helpers. with the registry:helper_path
-    //e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    // List of comma separated helpers in registry:helper_path format;
+    // requests will attempt to match a helper first based on the "service"
+    // field in the authentication challenge, and then based on the registry
+    // param passed to this tool.
+    // e.g. foo.gcr.io:/path/to/helper,bar.gcr.io:/path/to/helper2
+    // 
     docker_authorization_helpers: Option<String>,
 }
 

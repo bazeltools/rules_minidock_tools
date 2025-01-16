@@ -128,6 +128,7 @@ impl HttpRegistry {
                 inner_client: http_client,
                 docker_authorization_helpers,
                 auth_info: Default::default(),
+                registry: registry_base.as_ref().to_string(),
             },
         };
 

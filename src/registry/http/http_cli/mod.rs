@@ -22,6 +22,7 @@ pub struct HttpCli {
     pub inner_client: Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     pub auth_info: Arc<Mutex<Option<AuthResponse>>>,
     pub docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
+    pub registry: String,
 }
 
 impl HttpCli {
@@ -101,6 +102,7 @@ impl HttpCli {
                                 &auth_fail,
                                 &self.inner_client,
                                 self.docker_authorization_helpers.clone(),
+                                self.registry.clone(),
                             )
                             .await?;
                             let mut ai = self.auth_info.lock().await;

@@ -37,6 +37,7 @@ pub async fn authenticate_request(
     auth_fail: &BearerConfig,
     inner_client: &Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
     docker_authorization_helpers: Arc<Vec<DockerAuthenticationHelper>>,
+    registry: String,
 ) -> Result<AuthResponse, RequestFailType> {
     let mut parts = auth_fail.realm.clone().into_parts();
     let new_query_items = if let Some(scope) = &auth_fail.scope {
@@ -69,7 +70,12 @@ pub async fn authenticate_request(
 
     let matching_helper_opt: Option<&DockerAuthenticationHelper> = docker_authorization_helpers
         .iter()
-        .find(|e| e.registry == auth_fail.service);
+        .find(|e| e.registry == auth_fail.service)
+        // There's no guarantee that the "service" returned in the authentication challenge is
+        // an actual registry name, so if no match is found based on the Bearer "service" then
+        // we'll try to match based on the registry name.
+        // See https://distribution.github.io/distribution/spec/auth/token/
+        .or_else(|| docker_authorization_helpers.iter().find(|e| e.registry == registry));
 
     let basic_auth_info = if let Some(matching_helper) = matching_helper_opt {
         let mut child = Command::new(&matching_helper.helper_path)
