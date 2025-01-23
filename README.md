@@ -10,3 +10,6 @@ To cut a new release, use the
 UI to "Draft a new release" and hit the button to generate release notes.
 A new release will trigger GitHub actions to build the various binaries
 and attach them to the release.
+
+To pull a new tools release into `rules_minidock`, see that repo's
+[`update_remote_tools.sh`](https://github.com/bazeltools/rules_minidock/blob/main/minidock/remote_tools/update_remote_tools.sh).
