@@ -10,6 +10,7 @@ use http::Uri;
 
 use hyper::{Body, Client};
 use tokio::sync::Mutex;
+use std::cmp::max;
 
 use crate::registry::DockerAuthenticationHelper;
 
@@ -55,6 +56,8 @@ impl HttpCli {
     {
         let mut uri = uri.clone();
         let mut attempt = 0;
+        let mut auth_attempt = 0;
+        let auth_retries = max(retries, 3);
         let error = loop {
             match run_single_request(
                 self.auth_info.clone(),
@@ -67,7 +70,7 @@ impl HttpCli {
             {
                 Ok(o) => return Ok(o),
                 Err(err) => {
-                    if attempt > retries {
+                    if attempt > retries || auth_attempt > auth_retries {
                         break err;
                     }
                     attempt += 1;
@@ -108,7 +111,11 @@ impl HttpCli {
                             let mut ai = self.auth_info.lock().await;
                             *ai = Some(auth_info);
                             drop(ai);
+                            // We need to retry the request after we have the new auth info, so this
+                            // shouldn't count as an attempt, but we separately track auth attempts
+                            // to prevent going into an infinite auth loop if access is denied.
                             attempt -= 1;
+                            auth_attempt += 1;
                             continue;
                         }
                     }
