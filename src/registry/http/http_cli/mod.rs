@@ -95,6 +95,13 @@ impl HttpCli {
                                     )
                                 })?;
                             }
+                            // We drop existing auth info since this may conflict with auth for the
+                            // redirected destination. In particular, a redirect to blobs in S3 may
+                            // include X-Amz-* query parameters in the URL that cannot be used in
+                            // conjunction with an Authentication header.
+                            let mut ai = self.auth_info.lock().await;
+                            *ai = None;
+                            drop(ai);
                             continue;
                         }
                         RequestFailType::ConnectError(_) => continue,
