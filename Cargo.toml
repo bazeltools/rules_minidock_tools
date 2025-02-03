@@ -24,7 +24,7 @@ path = "app/merge_app.rs"
 anyhow = "1.0.95"
 async-recursion = "1.0.5"
 async-stream = "0.3.6"
-async-trait = "0.1.85"
+async-trait = "0.1.86"
 base64 = "0.21.7"
 bytes = "1.8.0"
 clap = { version = "4.5.27", features = ["derive", "env"] }
