@@ -28,7 +28,7 @@ async-trait = "0.1.88"
 base64 = "0.21.7"
 bytes = "1.8.0"
 clap = { version = "4.5.41", features = ["derive", "env"] }
-console = "0.15.11"
+console = "0.16.0"
 flate2 = "1.0.35"
 futures = "0.3.31"
 futures-core = "0.3.30"
