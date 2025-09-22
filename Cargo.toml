@@ -21,7 +21,7 @@ name = "merge-app"
 path = "app/merge_app.rs"
 
 [dependencies]
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 async-recursion = "1.0.5"
 async-stream = "0.3.6"
 async-trait = "0.1.89"
