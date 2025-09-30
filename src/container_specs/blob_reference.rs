@@ -4,6 +4,7 @@ use super::SpecificationType;
 pub enum BlobReferenceType {
     Config,
     LayerGz,
+    LayerZstd,
     Layer,
 }
 impl Default for BlobReferenceType {
