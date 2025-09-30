@@ -10,20 +10,19 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [macos-latest, ubuntu-20.04]
+        os: [macos-latest, ubuntu-latest]
         platform: [x86_64]
         include:
           - os: macos-latest
             platform: x86_64
           - os: macos-latest
             platform: aarch64
-          - os: ubuntu-20.04
+          - os: ubuntu-latest
             platform: x86_64
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+      - uses: actions/checkout@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
       - run: rustup component add rustfmt
       - name: Build and upload artifact
         run: ./.github/workflows/build_binaries.sh ${{ matrix.os }} ${{ matrix.platform }} merge-app puller-app pusher-app
