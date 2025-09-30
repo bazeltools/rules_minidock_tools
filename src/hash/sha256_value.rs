@@ -24,6 +24,21 @@ impl Sha256Value {
     pub async fn from_path_uncompressed(
         path: &std::path::Path,
     ) -> Result<(Sha256Value, DataLen), std::io::Error> {
+        // Detect compression type based on file extension
+        let path_str = path.to_string_lossy();
+        if path_str.ends_with(".tar.zst") || path_str.ends_with(".zst") {
+            Self::from_file_zstd_decompressed_with_uncompressed_size(path).await
+        } else if path_str.ends_with(".tar.gz") || path_str.ends_with(".tgz") {
+            Self::from_file_gz_decompressed_with_uncompressed_size(path).await
+        } else {
+            // Assume uncompressed file
+            Self::from_path(path).await
+        }
+    }
+
+    pub async fn from_file_gz_decompressed_with_uncompressed_size(
+        path: &std::path::Path,
+    ) -> Result<(Sha256Value, DataLen), std::io::Error> {
         use flate2::read::GzDecoder;
 
         let path = path.to_path_buf();
@@ -39,9 +54,41 @@ impl Sha256Value {
             let mut total_read = 0;
             while n > 0 {
                 n = f.read(&mut buffer[..])?;
-
                 if n > 0 {
-                    total_read += 1;
+                    total_read += n;
+                    hasher.update(&buffer[0..n]);
+                }
+            }
+
+            let new_hash = Sha256Value::new_from_slice(&hasher.finalize())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, Box::new(e)))?;
+
+            Ok((new_hash, DataLen(total_read)))
+        })
+        .await?
+    }
+
+    pub async fn from_file_zstd_decompressed_with_uncompressed_size(
+        path: &std::path::Path,
+    ) -> Result<(Sha256Value, DataLen), std::io::Error> {
+        use zstd::stream::read::Decoder as ZstdDecoder;
+
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            let compressed_f = std::fs::File::open(&path)?;
+
+            let compressed_f = BufReader::new(compressed_f);
+            let mut f = ZstdDecoder::new(compressed_f)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+            let mut buffer = vec![0; 1024 * 16];
+            let mut hasher = Sha256::new();
+
+            let mut n = 1;
+            let mut total_read = 0;
+            while n > 0 {
+                n = f.read(&mut buffer[..])?;
+                if n > 0 {
+                    total_read += n;
                     hasher.update(&buffer[0..n]);
                 }
             }

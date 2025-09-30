@@ -30,11 +30,17 @@ impl<'de> Deserialize<'de> for BlobReference {
             "application/vnd.oci.image.layer.v1.tar+gzip" => {
                 (SpecificationType::Oci, BlobReferenceType::LayerGz)
             }
+            "application/vnd.oci.image.layer.v1.tar+zstd" => {
+                (SpecificationType::Oci, BlobReferenceType::LayerZstd)
+            }
             "application/vnd.oci.image.layer.v1.tar" => {
                 (SpecificationType::Oci, BlobReferenceType::Layer)
             }
             "application/vnd.docker.image.rootfs.diff.tar.gzip" => {
-                (SpecificationType::Docker, BlobReferenceType::Layer)
+                (SpecificationType::Docker, BlobReferenceType::LayerGz)
+            }
+            "application/vnd.docker.image.rootfs.diff.tar.zstd" => {
+                (SpecificationType::Docker, BlobReferenceType::LayerZstd)
             }
             "application/vnd.docker.image.rootfs.diff.tar" => {
                 (SpecificationType::Docker, BlobReferenceType::Layer)
@@ -73,11 +79,17 @@ impl Serialize for BlobReference {
             (SpecificationType::Oci, BlobReferenceType::LayerGz) => {
                 "application/vnd.oci.image.layer.v1.tar+gzip"
             }
+            (SpecificationType::Oci, BlobReferenceType::LayerZstd) => {
+                "application/vnd.oci.image.layer.v1.tar+zstd"
+            }
             (SpecificationType::Oci, BlobReferenceType::Layer) => {
                 "application/vnd.oci.image.layer.v1.tar"
             }
             (SpecificationType::Docker, BlobReferenceType::LayerGz) => {
                 "application/vnd.docker.image.rootfs.diff.tar.gzip"
+            }
+            (SpecificationType::Docker, BlobReferenceType::LayerZstd) => {
+                "application/vnd.docker.image.rootfs.diff.tar.zstd"
             }
             (SpecificationType::Docker, BlobReferenceType::Layer) => {
                 "application/vnd.docker.image.rootfs.diff.tar"

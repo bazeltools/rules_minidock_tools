@@ -9,6 +9,32 @@ use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::bail;
 
+fn detect_compression_type(path: &std::path::Path) -> container_specs::blob_reference::BlobReferenceType {
+    if let Some(extension) = path.extension() {
+        if let Some(ext_str) = extension.to_str() {
+            match ext_str {
+                "tgz" => container_specs::blob_reference::BlobReferenceType::LayerGz,
+                "zst" => container_specs::blob_reference::BlobReferenceType::LayerZstd,
+                _ => {
+                    // Check for compound extensions like .tar.gz, .tar.zst
+                    let path_str = path.to_string_lossy();
+                    if path_str.ends_with(".tar.gz") {
+                        container_specs::blob_reference::BlobReferenceType::LayerGz
+                    } else if path_str.ends_with(".tar.zst") {
+                        container_specs::blob_reference::BlobReferenceType::LayerZstd
+                    } else {
+                        container_specs::blob_reference::BlobReferenceType::Layer
+                    }
+                }
+            }
+        } else {
+            container_specs::blob_reference::BlobReferenceType::Layer
+        }
+    } else {
+        container_specs::blob_reference::BlobReferenceType::Layer
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputLayer {
     pub content: PathPair,
@@ -150,10 +176,11 @@ pub async fn merge(
             let _sha_str_fmt = format!("sha256:{}", inner_sha_v);
             cfg.add_layer(inner_sha_v);
 
+            let compression_type = detect_compression_type(&pb);
             manifest.add_layer(
                 *compressed_sha_v,
                 *compressed_size,
-                container_specs::blob_reference::BlobReferenceType::LayerGz,
+                compression_type,
             );
             layer_uploads.layers.push(OutputLayer {
                 content: layer.clone(),
