@@ -109,6 +109,8 @@ pub enum RequestFailType {
     AuthFailure(Response<Body>, BearerConfig),
     #[error("Got a redirection code: '{0}'")]
     Redirection(String),
+    #[error("Server error (retryable): status {0}")]
+    ServerError(StatusCode, Response<Body>),
 }
 impl From<anyhow::Error> for RequestFailType {
     fn from(e: anyhow::Error) -> Self {
@@ -173,6 +175,13 @@ where
                     })?;
                     return Err(RequestFailType::Redirection(location_str.to_string()));
                 }
+            }
+            // Handle server errors (502, 503, 504) as retryable conditions
+            if r.status() == StatusCode::BAD_GATEWAY
+                || r.status() == StatusCode::SERVICE_UNAVAILABLE
+                || r.status() == StatusCode::GATEWAY_TIMEOUT
+            {
+                return Err(RequestFailType::ServerError(r.status(), r));
             }
             r
         }
