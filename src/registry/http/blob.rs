@@ -125,7 +125,7 @@ impl BlobStore for super::HttpRegistry {
 
         let mut r = self
             .http_client
-            .request_simple(&post_target_uri, http::Method::POST, 0)
+            .request_simple(&post_target_uri, http::Method::POST, 3)
             .await
             .with_context(|| {
                 format!(
@@ -219,7 +219,7 @@ impl BlobStore for super::HttpRegistry {
                         .body(body)
                         .map_err(|e| e.into())
                 },
-                0,
+                3,
             )
             .await
             .context("Performing upload bytes operation")?;

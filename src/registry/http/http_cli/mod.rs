@@ -105,6 +105,7 @@ impl HttpCli {
                             continue;
                         }
                         RequestFailType::ConnectError(_) => continue,
+                        RequestFailType::ServerError(_, _) => continue, // Retry server errors
                         RequestFailType::HyperError(_) => break err, // terminal.
                         RequestFailType::AnyhowError(_) => break err, // terminal.
                         RequestFailType::AuthFailure(_, auth_fail) => {
