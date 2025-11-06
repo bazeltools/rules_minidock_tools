@@ -5,11 +5,29 @@ use crate::{
 };
 
 use crate::container_specs::config::ExecutionConfig;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use anyhow::bail;
 
 fn detect_compression_type(path: &std::path::Path) -> container_specs::blob_reference::BlobReferenceType {
+    // First, try to detect compression by reading file magic bytes
+    // This is more reliable than file extensions, especially when layers
+    // are cached with generic names like "layer.tar" or have no extension.
+    if let Ok(mut file) = std::fs::File::open(path) {
+        let mut magic = [0u8; 4];
+        if file.read_exact(&mut magic).is_ok() {
+            // gzip magic bytes: 1f 8b
+            if magic[0..2] == [0x1f, 0x8b] {
+                return container_specs::blob_reference::BlobReferenceType::LayerGz;
+            }
+            // zstd magic bytes: 28 b5 2f fd
+            if magic == [0x28, 0xb5, 0x2f, 0xfd] {
+                return container_specs::blob_reference::BlobReferenceType::LayerZstd;
+            }
+        }
+    }
+    
+    // Fall back to extension-based detection if magic bytes don't match known formats
     if let Some(extension) = path.extension() {
         if let Some(ext_str) = extension.to_str() {
             match ext_str {
@@ -193,4 +211,132 @@ pub async fn merge(
     }
 
     Ok((cfg, manifest, layer_uploads))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_detect_gzip_by_magic_bytes() {
+        // Create a temp file with gzip magic bytes
+        let mut temp = NamedTempFile::new().unwrap();
+        // gzip magic: 1f 8b
+        temp.write_all(&[0x1f, 0x8b, 0x08, 0x00]).unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerGz);
+    }
+
+    #[test]
+    fn test_detect_zstd_by_magic_bytes() {
+        // Create a temp file with zstd magic bytes
+        let mut temp = NamedTempFile::new().unwrap();
+        // zstd magic: 28 b5 2f fd
+        temp.write_all(&[0x28, 0xb5, 0x2f, 0xfd]).unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerZstd);
+    }
+
+    #[test]
+    fn test_detect_uncompressed_tar() {
+        // Create a temp file with non-compressed content
+        let mut temp = NamedTempFile::new().unwrap();
+        // Tar file starts with filename, not magic bytes, so just write some non-magic data
+        temp.write_all(b"some_file_name_not_compressed_data").unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::Layer);
+    }
+
+    #[test]
+    fn test_gzip_with_wrong_extension() {
+        // The bug: file has .tar extension but is actually gzip
+        // This is the scenario that caused the docker layer corruption
+        let mut temp = tempfile::Builder::new()
+            .suffix(".tar")  // Wrong extension!
+            .tempfile()
+            .unwrap();
+        
+        // Write gzip magic bytes
+        temp.write_all(&[0x1f, 0x8b, 0x08, 0x00]).unwrap();
+        temp.flush().unwrap();
+        
+        // Should detect as gzip based on content, not extension
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerGz);
+    }
+
+    #[test]
+    fn test_gzip_with_no_extension() {
+        // The bug: file has no extension but is actually gzip
+        // This happens when layers are cached with generic names
+        let mut temp = tempfile::Builder::new()
+            .prefix("layer")
+            .suffix("")  // No extension!
+            .tempfile()
+            .unwrap();
+        
+        // Write gzip magic bytes
+        temp.write_all(&[0x1f, 0x8b, 0x08, 0x00]).unwrap();
+        temp.flush().unwrap();
+        
+        // Should detect as gzip based on content, not extension
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerGz);
+    }
+
+    #[test]
+    fn test_zstd_with_wrong_extension() {
+        // Ensure zstd detection also works with wrong extension
+        let mut temp = tempfile::Builder::new()
+            .suffix(".tar")
+            .tempfile()
+            .unwrap();
+        
+        // Write zstd magic bytes
+        temp.write_all(&[0x28, 0xb5, 0x2f, 0xfd]).unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerZstd);
+    }
+
+    #[test]
+    fn test_correct_tgz_extension() {
+        // Verify that correct extensions still work
+        let mut temp = tempfile::Builder::new()
+            .suffix(".tgz")
+            .tempfile()
+            .unwrap();
+        
+        // Write gzip magic bytes
+        temp.write_all(&[0x1f, 0x8b, 0x08, 0x00]).unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerGz);
+    }
+
+    #[test]
+    fn test_correct_zst_extension() {
+        // Verify that correct extensions still work for zstd
+        let mut temp = tempfile::Builder::new()
+            .suffix(".zst")
+            .tempfile()
+            .unwrap();
+        
+        // Write zstd magic bytes
+        temp.write_all(&[0x28, 0xb5, 0x2f, 0xfd]).unwrap();
+        temp.flush().unwrap();
+        
+        let result = detect_compression_type(temp.path());
+        assert_eq!(result, container_specs::blob_reference::BlobReferenceType::LayerZstd);
+    }
 }
