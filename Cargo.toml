@@ -47,7 +47,7 @@ thiserror = "1.0.68"
 tokio = { version = "1.41.1", features = ["full"] }
 tokio-stream = "0.1.17"
 tokio-util = { version = "0.7.17", features = ["io"] }
-tracing = "0.1.43"
+tracing = "0.1.44"
 
 
 
