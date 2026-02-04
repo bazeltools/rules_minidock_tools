@@ -29,7 +29,7 @@ base64 = "0.21.7"
 bytes = "1.8.0"
 clap = { version = "4.5.56", features = ["derive", "env"] }
 console = "0.15.11"
-flate2 = "1.1.8"
+flate2 = "1.1.9"
 zstd = "0.13.0"
 futures = "0.3.31"
 futures-core = "0.3.30"
