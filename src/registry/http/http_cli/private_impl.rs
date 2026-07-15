@@ -39,39 +39,20 @@ impl BearerConfig {
 
         // the csv thats used here the csv parsers i saw don't like
         // of the shape key="value",key="value3,e",y="value"
-        let csv_split_safe_regex = Regex::new(r#"(".*?"|[^",\s]+)"#).unwrap();
+        //
+        // Values aren't always quoted (e.g. gcr.io sends `service=gcr.io` unquoted
+        // while quoting `realm`), so we match each `key=value` pair directly instead
+        // of splitting into a flat token list on quote/comma boundaries and assuming
+        // every pair produces exactly two tokens.
+        let pair_regex = Regex::new(r#"([a-zA-Z_][a-zA-Z0-9_]*)=("[^"]*"|[^,]*)"#).unwrap();
 
-        // this will split into pairs of '{key}=' and 'value'
-        let pairs: Vec<&str> = csv_split_safe_regex
-            .captures_iter(auth_header)
-            .map(|e| {
-                let (_, [m]) = e.extract();
-                m
-            })
-            .collect();
-        if (pairs.len() % 2) != 0 {
-            anyhow::bail!("Invalid auth header, we attempted to split on csv, and expected an even key value pairs but got: {}; pairs: {:#?}", pairs.len(), pairs);
-        }
-
-        for element_idx in 0..(pairs.len() / 2) {
-            let key_pos = element_idx * 2;
-            let value_pos = key_pos + 1;
-            // these errors below shouldn't really occur by construction.
-            let key = pairs
-                .get(key_pos)
-                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?;
-            let value = pairs
-                .get(value_pos)
-                .ok_or_else(|| anyhow::anyhow!("Invalid auth header"))?;
-            let value = value.trim_matches('"');
-            let key = if let Some(p) = key.strip_suffix("=") {
-                p.trim_matches('"')
-            } else {
-                anyhow::bail!(
-                    "Invalid auth header, looking at part: '{}', we couldn't find a trailing '='",
-                    key
-                );
-            };
+        for cap in pair_regex.captures_iter(auth_header) {
+            let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+            let value = cap
+                .get(2)
+                .map(|m| m.as_str())
+                .unwrap_or("")
+                .trim_matches('"');
             match key {
                 "realm" => {
                     realm = Some(
@@ -203,5 +184,100 @@ mod tests {
         );
         assert_eq!(hdr.service, "registry.docker.io");
         assert_eq!(hdr.service, "registry.docker.io");
+    }
+
+    #[test]
+    fn test_decode_auth_header_gcr_unquoted_service() {
+        // gcr.io returns `service` unquoted, unlike docker.io above which quotes it.
+        let header = "Bearer realm=\"https://gcr.io/v2/token\",service=gcr.io";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(hdr.realm, "https://gcr.io/v2/token".parse::<Uri>().unwrap());
+        assert_eq!(hdr.service, "gcr.io");
+    }
+
+    #[test]
+    fn test_decode_auth_header_quoted_scope_with_comma() {
+        // scope values can themselves contain commas (e.g. multiple actions on one
+        // repo), which is exactly why the original parser tried to be comma-safe.
+        let header = "Bearer realm=\"https://auth.docker.io/token\",service=\"registry.docker.io\",scope=\"repository:samalba/my-app:pull,push\"";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(
+            hdr.realm,
+            "https://auth.docker.io/token".parse::<Uri>().unwrap()
+        );
+        assert_eq!(hdr.service, "registry.docker.io");
+        assert_eq!(hdr.scope, Some("repository:samalba/my-app:pull,push".to_string()));
+    }
+
+    #[test]
+    fn test_decode_auth_header_space_after_comma() {
+        // Azure Container Registry (and others) put a space after the comma, e.g.
+        // `realm="...", service="..."` rather than docker.io/gcr.io's `realm="...",service="..."`.
+        let header = "Bearer realm=\"https://x.azurecr.io/oauth2/token\", service=\"x.azurecr.io\"";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(
+            hdr.realm,
+            "https://x.azurecr.io/oauth2/token".parse::<Uri>().unwrap()
+        );
+        assert_eq!(hdr.service, "x.azurecr.io");
+    }
+
+    #[test]
+    fn test_decode_auth_header_fully_unquoted() {
+        // Neither value quoted at all.
+        let header = "Bearer realm=https://example.com/token,service=example.com";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(hdr.realm, "https://example.com/token".parse::<Uri>().unwrap());
+        assert_eq!(hdr.service, "example.com");
+    }
+
+    #[test]
+    fn test_decode_auth_header_fields_out_of_order() {
+        // Field order isn't guaranteed by the spec.
+        let header = "Bearer service=registry.docker.io,realm=\"https://auth.docker.io/token\"";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(
+            hdr.realm,
+            "https://auth.docker.io/token".parse::<Uri>().unwrap()
+        );
+        assert_eq!(hdr.service, "registry.docker.io");
+    }
+
+    #[test]
+    fn test_decode_auth_header_with_error_param() {
+        // Registries often add an `error` param (RFC 6750 sec 3) alongside realm/service
+        // when returning a 401, e.g. after an expired token. It's not a field we track,
+        // but it must not break parsing of the other params.
+        let header = "Bearer realm=\"https://auth.docker.io/token\",service=\"registry.docker.io\",error=\"invalid_token\"";
+
+        let hdr = BearerConfig::from_auth_header(header).expect("Should be able to decode header");
+        assert_eq!(
+            hdr.realm,
+            "https://auth.docker.io/token".parse::<Uri>().unwrap()
+        );
+        assert_eq!(hdr.service, "registry.docker.io");
+    }
+
+    #[test]
+    fn test_decode_auth_header_missing_service_errors() {
+        let header = "Bearer realm=\"https://auth.docker.io/token\"";
+        assert!(BearerConfig::from_auth_header(header).is_err());
+    }
+
+    #[test]
+    fn test_decode_auth_header_missing_realm_errors() {
+        let header = "Bearer service=\"registry.docker.io\"";
+        assert!(BearerConfig::from_auth_header(header).is_err());
+    }
+
+    #[test]
+    fn test_decode_auth_header_not_bearer_errors() {
+        let header = "Basic realm=\"https://auth.docker.io/token\"";
+        assert!(BearerConfig::from_auth_header(header).is_err());
     }
 }
