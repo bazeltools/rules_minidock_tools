@@ -258,6 +258,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.16.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fe5f465a4f6fee88fad41b85d990f84c835335e85b5d9e6e63e0d06d28cba7c"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "unicode-width 0.2.1",
+ "windows-sys 0.61.1",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -607,7 +619,7 @@ name = "indicatif"
 version = "0.17.0-rc.10"
 source = "git+https://github.com/console-rs/indicatif.git?rev=2ca9d019fbb4b0aed11bfad984daef064998f5ef#2ca9d019fbb4b0aed11bfad984daef064998f5ef"
 dependencies = [
- "console",
+ "console 0.15.11",
  "number_prefix",
  "unicode-width 0.1.14",
 ]
@@ -880,7 +892,7 @@ dependencies = [
  "base64",
  "bytes",
  "clap",
- "console",
+ "console 0.16.4",
  "flate2",
  "futures",
  "futures-core",
