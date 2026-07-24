@@ -25,7 +25,7 @@ anyhow = "1.0.102"
 async-recursion = "1.0.5"
 async-stream = "0.3.6"
 async-trait = "0.1.89"
-base64 = "0.21.7"
+base64 = "0.23.0"
 bytes = "1.8.0"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 console = "0.15.11"
