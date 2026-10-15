@@ -30,7 +30,7 @@ bytes = "1.8.0"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 console = "0.15.11"
 flate2 = "1.1.9"
-zstd = "0.13.0"
+zstd = "0.14.2"
 futures = "0.3.32"
 futures-core = "0.3.30"
 http = "0.2.11"
